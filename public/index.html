@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>童站挑战剪辑器</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --line:#2a2f3a;
+    --txt:#e6e9ef; --muted:#9aa3b2; --accent:#4f8cff; --mark:#ffb020;
+    --danger:#ff5d5d; --ok:#37d39b; --warn:#ffb020;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:16px 16px 70px}
+  h1{font-size:19px;margin:4px 0 4px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .panel h2{font-size:14px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .panel h2 .n{width:20px;height:20px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+    display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
+  /* 按钮体系：主操作(蓝) / 完成导出(绿) / 次要(默认) / 安静(ghost) / 危险(红) */
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;transition:.15s;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1.15;white-space:nowrap}
+  button:hover{border-color:var(--accent);background:#242b38}
+  button:active{background:#1b212c}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:linear-gradient(180deg,#5c95ff,#3d79ef);border-color:#4f8cff;color:#fff;
+    font-weight:600;box-shadow:0 3px 12px #4f8cff2e}
+  button.primary:hover{background:linear-gradient(180deg,#6ba0ff,#4a84f5)}
+  button.ok{background:linear-gradient(180deg,#45dfaa,#25bd87);border-color:#2fca93;color:#03251a;
+    font-weight:700;box-shadow:0 3px 14px #37d39b2e}
+  button.ok:hover{background:linear-gradient(180deg,#57e7b5,#2ecd93)}
+  button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+  button.ghost:hover{background:#ffffff0f;border-color:var(--line);color:var(--txt)}
+  button.danger{color:#ffb3b3}
+  button.danger:hover{border-color:#ff5d5d88;background:#ff5d5d1f;color:#fff}
+  button.mini{padding:5px 9px;font-size:11.5px;border-radius:7px;gap:4px;font-weight:500}
+  button.big{padding:11px 20px;font-size:14px;border-radius:11px}
+  .btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .grouplabel{font-size:10.5px;color:var(--muted);letter-spacing:1px;background:#ffffff0a;
+    border:1px solid var(--line);border-radius:6px;padding:3px 8px;flex:none}
+  .toolbox{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-top:10px;background:#ffffff05}
+  /* 审核栏（视频右侧，边看边标） */
+  .auditbox{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#ffffff05}
+  .audittitle{font-size:12.5px;font-weight:600;color:#cfe3ff}
+  table.segtable{font-size:11.5px}
+  table.segtable th,table.segtable td{padding:5px 6px}
+  table.segtable .badge{min-width:22px;height:19px;padding:0 5px;font-size:11px}
+  table.segtable .switch span{font-size:11px}
+  /* 当前播放的段 */
+  tr.playing td{background:#4f8cff1f !important;box-shadow:inset 3px 0 0 var(--accent)}
+  tr.playing td.num{color:#dbe8ff}
+  .tl .segblk.cur{box-shadow:inset 0 0 0 2px var(--accent);z-index:2}
+  input[type=text],input[type=number],select{background:var(--panel2);color:var(--txt);
+    border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px}
+  input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--accent);outline:none}
+  label{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .grow{flex:1;min-width:180px}
+
+  /* 步骤条 */
+  .steps{display:flex;gap:0;margin-bottom:14px;flex-wrap:wrap}
+  .step{flex:1;min-width:130px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);
+    border-right:none;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .step:first-child{border-radius:10px 0 0 10px}
+  .step:last-child{border-right:1px solid var(--line);border-radius:0 10px 10px 0}
+  .step.active{background:var(--panel2);color:var(--txt);border-color:var(--accent)}
+  .step.done{color:var(--ok)}
+  .step .dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.5}
+  .step.active .dot{opacity:1}
+
+  /* 视频舞台 */
+  .stagebox{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px}
+  @media(max-width:900px){.stagebox{grid-template-columns:1fr}}
+  .stage{position:relative;background:#000;border-radius:10px;overflow:hidden;
+    touch-action:none;user-select:none;cursor:ns-resize}
+  video{width:100%;display:block;background:#000;max-height:52vh;border-radius:10px}
+  .hint{position:absolute;left:50%;top:12px;transform:translateX(-50%);
+    background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:6px 12px;border-radius:20px;
+    pointer-events:none;transition:opacity .35s;white-space:nowrap;opacity:0}
+  .hint.flash{opacity:1}
+  .gesture-tip{position:absolute;right:10px;bottom:10px;font-size:11px;color:#fff9;
+    background:rgba(0,0,0,.45);padding:4px 8px;border-radius:6px;pointer-events:none}
+  .cinfo{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.75;
+    font-variant-numeric:tabular-nums;word-break:break-all}
+  .cinfo b{color:var(--txt);font-weight:600}
+
+  /* 时间轴 */
+  .tl{position:relative;height:58px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;margin:12px 0 6px;overflow:hidden;cursor:crosshair;user-select:none}
+  .tl .segblk{position:absolute;top:0;bottom:0;border-right:1px solid #0008}
+  .tl .segblk.err{background:#ff5d5d33!important;box-shadow:inset 0 0 0 1px #ff5d5d88}
+  .tl .segblk:nth-child(odd){background:#2b3444}
+  .tl .segblk:nth-child(even){background:#333e52}
+  .tl .segno{position:absolute;bottom:3px;left:5px;font-size:10px;color:#fff9;pointer-events:none;line-height:1.3}
+  .tl .segno em{font-style:normal;color:#ffd070;font-weight:600}
+  .tl .cutnode{position:absolute;top:0;bottom:0;width:9px;margin-left:-4.5px;cursor:ew-resize;z-index:5}
+  .tl .cutnode::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:var(--mark);border-radius:2px}
+  .tl .cutnode:hover::after{background:#ffd070;box-shadow:0 0 8px #ffb02088}
+  .tl .cutnode.sel::after{background:var(--accent);box-shadow:0 0 8px #4f8cffaa}
+  .tl .ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;z-index:6;pointer-events:none}
+  .tltip{position:absolute;top:3px;background:#000c;color:#fff;font-size:10.5px;padding:2px 6px;
+    border-radius:4px;pointer-events:none;white-space:nowrap;z-index:8;transform:translateX(-50%)}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-weight:500;font-size:11.5px;position:sticky;top:0;background:var(--panel);z-index:2}
+  td.num{font-variant-numeric:tabular-nums}
+  .scroll{max-height:380px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+  tr.sel{background:#4f8cff1a}
+  tr.err td{background:#ff5d5d12}
+  .tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--muted)}
+  .tag.err{background:#ff5d5d1f;border-color:#ff5d5d66;color:#ff9d9d}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 7px;
+    border-radius:6px;background:#4f8cff22;border:1px solid #4f8cff66;color:#bcd4ff;
+    font-variant-numeric:tabular-nums;font-weight:600;font-size:12.5px}
+  .badge.err{background:#ff5d5d22;border-color:#ff5d5d66;color:#ff9d9d}
+  .switch{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+  .switch .track{width:34px;height:18px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);
+    position:relative;transition:.15s}
+  .switch .track::after{content:"";position:absolute;left:2px;top:1px;width:13px;height:13px;border-radius:50%;
+    background:var(--muted);transition:.15s}
+  .switch.on .track{background:#ff5d5d33;border-color:#ff5d5d88}
+  .switch.on .track::after{left:17px;background:var(--danger)}
+  .switch span{font-size:11.5px;color:var(--muted)}
+  .switch.on span{color:#ff9d9d}
+  .empty{color:var(--muted);text-align:center;padding:22px;font-size:12.5px}
+  .bar{height:5px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:.2s}
+  .stat{font-size:11.5px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+  .note{font-size:11.5px;color:var(--muted);line-height:1.8}
+  .note code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#ffd070}
+  .note b{color:var(--txt)}
+  details{margin-top:8px}
+  summary{cursor:pointer;color:#cfe3ff;font-size:12.5px;font-weight:600;user-select:none;list-style-position:inside}
+  summary:hover{color:#fff}
+  summary::marker{color:var(--accent)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:12px}
+  .kv b{color:var(--muted);font-weight:500}
+  pre{background:#0b0d11;border:1px solid var(--line);border-radius:10px;padding:12px;
+    overflow:auto;max-height:320px;font-size:12px;line-height:1.6;margin:0;
+    font-family:"SF Mono",Consolas,Menlo,monospace;color:#cfe3ff;white-space:pre}
+  .flash{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000d;color:#fff;
+    padding:9px 16px;border-radius:20px;font-size:12.5px;opacity:0;pointer-events:none;transition:.25s;z-index:99}
+  .flash.on{opacity:1}
+  /* 内置文件浏览器 */
+  .modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:120}
+  .modalbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    width:min(760px,94vw);max-height:84vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 20px 60px #000a}
+  .modalhead{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:14px}
+  .browselist{overflow:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel2);min-height:180px;flex:1}
+  .browseitem{display:flex;align-items:center;gap:9px;padding:8px 11px;cursor:pointer;font-size:12.5px;
+    border-bottom:1px solid var(--line);white-space:nowrap}
+  .browseitem:last-child{border-bottom:none}
+  .browseitem:hover{background:#ffffff12}
+  .browseitem .sz{margin-left:auto;color:var(--muted);font-size:11px;flex:none}
+  .browseitem .nm{overflow:hidden;text-overflow:ellipsis}
+  .browseitem.file .nm{color:#ffd070}
+  .crumb{font-size:11.5px;color:var(--muted);word-break:break-all}
+  /* 烧录标记 */
+  .switch.blue.on .track{background:#4f8cff33;border-color:#4f8cff88}
+  .switch.blue.on .track::after{left:17px;background:var(--accent)}
+  .switch.blue.on span{color:#bcd4ff}
+  .grid9{display:grid;grid-template-columns:repeat(3,30px);grid-template-rows:repeat(3,22px);gap:4px}
+  .grid9 button{padding:0;font-size:11px;border-radius:5px;line-height:1;color:var(--muted)}
+  .grid9 button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .pvwrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-top:10px}
+  .pvframe{position:relative;width:230px;background:#000;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+  .pvframe img.frame{width:100%;display:block}
+  .pvframe img.badgeimg{position:absolute;pointer-events:none;height:auto}
+  .pvside{display:flex;gap:12px;font-size:11.5px;color:var(--muted);align-items:flex-start;flex-wrap:wrap}
+  .pvthumb{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 9px;border:1px solid var(--line);
+    border-radius:8px;background:repeating-conic-gradient(#2a2f3a 0% 25%,#1f232c 0% 50%) 50%/12px 12px}
+  .pvthumb img{height:84px;display:block}
+  /* 结尾点：之后的区段不导出、不烧录 */
+  .tl .tailmask{position:absolute;top:0;bottom:0;z-index:3;pointer-events:none;
+    background:repeating-linear-gradient(45deg,rgba(0,0,0,0) 0 6px,rgba(255,255,255,.09) 6px 12px);
+    border-left:1px dashed rgba(255,255,255,.45)}
+  .tl .tailmask span{position:absolute;left:6px;top:4px;font-size:10px;color:#ffffffb0;white-space:nowrap}
+  .tl .headmask{position:absolute;top:0;bottom:0;z-index:3;pointer-events:none;
+    background:repeating-linear-gradient(-45deg,rgba(0,0,0,0) 0 6px,rgba(255,255,255,.09) 6px 12px);
+    border-right:1px dashed rgba(255,255,255,.45)}
+  .tl .headmask span{position:absolute;right:6px;top:4px;font-size:10px;color:#ffffffb0;white-space:nowrap}
+  .tl .cutnode.start::after{background:var(--accent);box-shadow:0 0 8px #4f8cff99}
+  .tl .cutnode.end::after{background:var(--ok);box-shadow:0 0 8px #37d39b99}
+  tr.endrow td{background:#37d39b12}
+  tr.startrow td{background:#4f8cff14}
+  .keycap{font-family:"SF Mono",Consolas,Menlo,monospace;font-weight:600;min-width:52px;
+    padding:4px 10px;border-color:#4f8cff88;color:#bcd4ff;background:#4f8cff1a}
+  .keycap.capturing{border-color:var(--accent);color:#fff;background:#4f8cff44}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>童站挑战剪辑器</h1>
+  <div class="sub">滚轮下滚 / 下滑打点 → 审核标错（出错后重新从 1 编号）→ 导出带 ✅/❌ + 编号 + 对/错音效的切片</div>
+
+  <div class="steps" id="steps">
+    <div class="step" data-s="1"><span class="dot"></span>1 载入 · 打点 · 审核</div>
+    <div class="step" data-s="2"><span class="dot"></span>2 导出成片</div>
+  </div>
+
+  <!-- ===== 步骤 1 ===== -->
+  <div class="panel">
+    <h2><span class="n">1</span>载入源文件 · 打点 · 审核</h2>
+    <div class="btnrow" style="margin-bottom:10px">
+      <button id="pickBtn" class="primary big">📂 浏览文件…</button>
+      <button id="osBtn" class="ghost" title="调用系统文件对话框">系统对话框</button>
+      <input type="text" id="srcPath" class="grow" placeholder="或粘贴文件 / 文件夹路径，例如 F:\videos\a.mp4">
+      <button id="loadBtn">载入路径</button>
+    </div>
+    <div class="stagebox">
+      <div>
+        <div class="stage" id="stage">
+          <video id="video" playsinline preload="metadata" controls></video>
+          <div class="hint" id="hint">向下滚动滚轮 → 在此进度打点</div>
+          <div class="gesture-tip">↓ 滚轮下滚 / 下滑打点</div>
+        </div>
+        <div class="tl" id="tl">
+          <div class="ph" id="ph" style="left:0"></div>
+          <div class="tltip" id="tltip" style="display:none"></div>
+        </div>
+        <div class="btnrow" style="margin-top:10px">
+          <button id="playBtn">▶ 播放 / 暂停</button>
+          <span class="stat" id="curt" style="margin:0">00:00.00 / 00:00.00</span>
+          <span class="grow"></span>
+          <button id="addHereBtn" class="primary">＋ 在当前时间打点</button>
+          <button id="undoBtn" title="删掉最后一个切点">↶ 撤销上一个</button>
+          <button id="clearCutsBtn" class="ghost danger" title="清空全部切点（会一起取消「结尾」）">🗑 清空切点</button>
+        </div>
+
+        <details class="toolbox">
+          <summary>打点存档 &amp; 快捷键设置<span class="stat" id="markSaveInfo" style="margin-left:10px"></span></summary>
+          <div class="note" style="margin-top:9px">
+            <b>打点会自动存在本机浏览器里</b>（换视频再回来也能找回）；重要进度建议「导出打点」存个文件备份。
+          </div>
+          <div class="btnrow" style="margin-top:8px">
+            <button id="expMarksBtn" title="把切点、错误标记、结尾存成 JSON 文件">⬇ 导出打点</button>
+            <button id="impBtn" title="从 JSON 文件恢复切点与错误标记">⬆ 导入打点</button>
+            <button id="restoreBtn" class="ghost" title="恢复本机浏览器自动保存的最近一次打点">↺ 恢复上次存档</button>
+            <input type="file" id="impFile" accept=".json,application/json" style="display:none">
+          </div>
+          <div class="btnrow" style="margin-top:10px">
+            <label class="switch blue" id="hkOnWrap"><span class="track"></span><span>快捷键</span></label>
+            <label style="color:var(--muted)">打点</label>
+            <button id="hkBtn" class="keycap" title="点这里，然后按你想用的键（Esc 取消）">M</button>
+            <label style="color:var(--muted)">标错</label>
+            <button id="hkErrBtn" class="keycap" title="点这里，然后按你想用的键（Esc 取消）">E</button>
+            <button id="hkResetBtn" class="ghost mini">恢复默认</button>
+            <span class="stat" id="hkInfo" style="margin:0"></span>
+          </div>
+        </details>
+      </div>
+      <div>
+        <div class="kv" id="markInfo"></div>
+
+        <!-- 审核 & 标记错误（就放在视频右边，边看边标） -->
+        <div class="auditbox">
+          <div class="btnrow" style="margin-bottom:7px">
+            <span class="audittitle">审核 &amp; 标记错误</span>
+            <span class="stat" id="segStat" style="margin:0">共 0 段</span>
+            <span class="grow"></span>
+            <button id="invertErrBtn" class="ghost mini" title="把所有段的 ✅/❌ 对调（再点一次就换回来）">⇅ 全部反选</button>
+            <button id="clearErrBtn" class="ghost danger mini" title="把所有段的「错误」标记清掉">清除全部</button>
+          </div>
+          <div class="scroll" style="max-height:44vh">
+            <table class="segtable">
+              <thead><tr>
+                <th style="width:34px">段</th><th style="width:72px">区间</th>
+                <th style="width:52px">编号</th><th style="width:62px">错误</th>
+                <th style="text-align:right">操作</th>
+              </tr></thead>
+              <tbody id="segBody"></tbody>
+            </table>
+            <div class="empty" id="segEmpty">还没有分段。先打点。</div>
+          </div>
+          <div class="note" style="margin-top:7px">
+            按 <b>标错键</b>（默认 <code>E</code>）把当前播放位置的这一段标为错误 / 取消。
+          </div>
+        </div>
+
+        <div class="cinfo" id="srcinfo" style="margin-top:10px"></div>
+        <details style="margin-top:8px">
+          <summary>怎么打点 / 怎么微调</summary>
+          <div class="note" style="margin-top:8px">
+            <b>怎么打点：</b>鼠标放到视频画面上，<b>向下滚动滚轮</b>（手机上下滑），或按<b>打点键</b>（默认 <code>M</code>），
+            就在当前播放进度打一个点；一次滚动手势只打一个点，相邻过近（&lt;1s）自动去重。<br>
+            <b>怎么微调：</b>拖动时间轴上的<span style="color:var(--mark)">橙色切点</span>改时间；
+            点选后可在下方「切点列表」里删除、或把它设为<span style="color:var(--accent)">起点</span>／
+            <span style="color:#8ef0c8">结尾</span>（起点之前、结尾之后都不导出）。<br>
+            <b>编号规则：</b>按时间顺序从 <code>1</code> 递增；某段标为「错误」后<b>下一段重新从 1 开始</b>
+            （错误段本身仍参与编号）。例：A=1 B=2 <span style="color:#ff9d9d">C=3（错误）</span> → D=1 E=2
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="scroll" style="margin-top:12px;max-height:280px">
+      <table>
+        <thead><tr>
+          <th style="width:70px">切点</th><th style="width:180px">时间码</th>
+          <th style="width:110px">秒</th><th style="text-align:right">操作</th>
+        </tr></thead>
+        <tbody id="markBody"></tbody>
+      </table>
+      <div class="empty" id="markEmpty">还没有切点。把鼠标放到视频上，向下滚动滚轮打点。</div>
+    </div>
+  </div>
+
+  <!-- ===== 步骤 2：导出 ===== -->
+  <div class="panel">
+    <h2><span class="n">2</span>导出烧录切片 / 成片</h2>
+    <div class="btnrow" style="margin-bottom:10px">
+      <label class="grow">输出目录
+        <input type="text" id="outDir" class="grow" style="min-width:340px">
+      </label>
+    </div>
+    <div class="btnrow" style="margin-bottom:12px">
+      <label>干净切片模式
+        <select id="mode">
+          <option value="reencode">重编码（帧精确，推荐）</option>
+          <option value="copy">流拷贝（无损，切点对齐关键帧）</option>
+        </select>
+      </label>
+      <label>切片前缀 <input type="text" id="prefix" value="clip_" style="width:88px"></label>
+      <label class="switch blue" id="mgOnWrap" style="margin-left:4px"
+        title="导出完成后，把切片按顺序拼成一条成片（童站挑战视频）"><span class="track"></span><span>导出后合并成片</span></label>
+      <span class="grow"></span>
+      <button id="openDirBtn" class="ghost">📁 打开输出目录</button>
+      <button id="mergeBtn" title="不重新导出，直接把 clips_burned 里的切片按顺序拼成一条成片">🎬 合并成片</button>
+      <button id="renderBtn" class="ok big" title="按当前设置导出切片（勾了开关就同时合并成片）">▶ 一键导出切片</button>
+    </div>
+
+    <details id="burnBox" open class="toolbox">
+      <summary>烧录标记设置：✅/❌ + 编号 + 音效（输出到 clips_burned/）</summary>
+      <div class="btnrow" style="margin-top:11px">
+        <label class="switch blue" id="bnOnWrap"><span class="track"></span><span>烧录到切片</span></label>
+        <label class="switch blue" id="bnCleanWrap"><span class="track"></span><span>同时输出干净切片（clips/）</span></label>
+        <span class="grow"></span>
+        <button id="bnPreviewBtn" title="用当前设置，把标记叠在画面上看效果">👁 预览位置</button>
+        <span class="stat" id="bnHint" style="margin:0"></span>
+      </div>
+
+      <div class="btnrow" style="margin-top:12px">
+        <span class="grouplabel">外观</span>
+        <label>符号大小 <input type="number" id="bnScale" min="4" max="80" step="1" style="width:62px">%宽</label>
+        <label>编号字号 <input type="number" id="bnNumSize" min="1" max="25" step="0.5" style="width:62px">%高</label>
+        <label>间距 <input type="number" id="bnGap" min="0" max="25" step="0.5" style="width:62px">%高</label>
+        <label>上下顺序
+          <select id="bnOrder">
+            <option value="badgeTop">符号在上 · 编号在下</option>
+            <option value="numberTop">编号在上 · 符号在下</option>
+          </select>
+        </label>
+        <label>符号风格
+          <select id="bnStyle">
+            <option value="emoji">系统表情 ✅ ❌</option>
+            <option value="vector">矢量绿勾/红叉</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="btnrow" style="margin-top:10px">
+        <span class="grouplabel">位置</span>
+        <div class="grid9" id="bnGrid"></div>
+        <label>水平偏移 <input type="number" id="bnOffX" step="1" style="width:62px">%</label>
+        <label>垂直偏移 <input type="number" id="bnOffY" step="1" style="width:62px">%</label>
+        <label>编号颜色 <input type="color" id="bnColor" style="width:36px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:none"></label>
+        <label>描边色 <input type="color" id="bnStroke" style="width:36px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:none"></label>
+        <label>描边 <input type="number" id="bnStrokeW" min="0" max="2" step="0.05" style="width:58px">%高</label>
+      </div>
+
+      <div class="btnrow" style="margin-top:10px">
+        <span class="grouplabel">时间</span>
+        <label>符号延迟 <input type="number" id="bnDelay" min="0" max="3" step="0.1" style="width:62px">秒</label>
+        <label>符号显示 <input type="number" id="bnShow" min="0" max="600" step="0.5" style="width:66px"
+          title="符号出现后显示多少秒消失；0 = 一直显示不消失">秒后消失</label>
+        <label>编号延迟 <input type="number" id="bnNumDelay" min="0" max="3" step="0.1" style="width:62px">秒</label>
+        <label>编号显示 <input type="number" id="bnNumShow" min="0" max="600" step="0.5" style="width:66px"
+          title="编号出现后显示多少秒消失；0 = 一直显示不消失（默认）">秒后消失</label>
+      </div>
+
+      <div class="btnrow" style="margin-top:10px">
+        <span class="grouplabel">音效</span>
+        <label class="switch blue" id="bnSfxWrap"><span class="track"></span><span>混入对 / 错音效</span></label>
+        <label class="grow">对.mp3 <input type="text" id="bnSfxOk" class="grow" style="min-width:200px"></label>
+        <label class="grow">错.mp3 <input type="text" id="bnSfxNo" class="grow" style="min-width:200px"></label>
+        <label>音量 <input type="number" id="bnSfxVol" min="0" max="300" step="5" style="width:62px">%</label>
+      </div>
+
+      <div class="note" style="margin-top:10px">
+        正常段烧 <b>✅ + 编号</b> 并混入 <code>对.mp3</code>；错误段烧 <b>❌ + 编号</b> 并混入 <code>错.mp3</code>。
+        符号与编号<strong>上下叠放</strong>，位置＝九宫格锚点 + 水平/垂直偏移（负值向上/左）。<br>
+        <b>出现 / 消失</b>：<b>符号</b>默认延迟 <b>0.5 秒</b>出现（音效同时响）、显示 <b>3 秒</b>后消失；
+        <b>编号</b>默认 <b>0 秒</b>出现（第一帧就有）、<b>不消失</b>（一直显示到片尾）。四个值都能单独改，
+        「显示」填 <b>0</b> 表示该项出现后不再消失；切片过短时延迟各自自动提前（约占总长 20%），音效按切片长度截断。
+        原声保持不变（混音）。
+      </div>
+      <div class="pvwrap" id="bnPv" style="display:none">
+        <div class="pvframe">
+          <img class="frame" id="bnPvImg" alt="">
+          <div id="bnPvLayers"></div>
+        </div>
+        <div class="pvside">
+          <div class="pvthumb"><img id="bnThumbOk" alt=""><span>正常段 ✅</span></div>
+          <div class="pvthumb"><img id="bnThumbNo" alt=""><span>错误段 ❌</span></div>
+          <span id="bnPvMsg"></span>
+        </div>
+      </div>
+    </details>
+
+    <div class="bar"><i id="p3bar"></i></div>
+    <div class="stat" id="p3msg">尚未导出</div>
+    <div class="note" style="margin-top:8px" id="planInfo"></div>
+    <details>
+      <summary>编号规则 &amp; 目录结构说明</summary>
+      <div class="note" style="margin-top:8px">
+        <p><b>烧录切片：</b>输出到 <code>&lt;输出目录&gt;\clips_burned\</code>，按时间顺序命名
+        <code>clip_001.mp4</code>、<code>clip_002.mp4</code>…（<b>始终按时间先后，不受编号重置影响</b>），
+        画面里烧好 ✅/❌ + 该段编号，并混入对/错音效。</p>
+        <p><b>干净切片（可选）：</b>输出到 <code>&lt;输出目录&gt;\clips\</code>，同一个导出流程顺手出一份未烧录的版本，
+        不需要可关掉开关省一半时间。</p>
+        <p><b>清单：</b>同时写出 <code>&lt;输出目录&gt;\manifest.json</code>，含每段的起止、编号、是否错误、
+        烧录文件大小、用了哪个音效、出现延迟等。</p>
+        <p><b>不再生成 ASS：</b>编号已直接烧进画面，无需再写字幕文件。</p>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<!-- 内置文件浏览器（必须放在脚本之前：脚本解析时立即绑定其按钮，若放在其后会取到 null 并中断整个脚本） -->
+<div id="browseModal" class="modal" style="display:none">
+  <div class="modalbox">
+    <div class="modalhead">
+      <b>选择视频文件</b>
+      <span class="grow"></span>
+      <button id="browseClose" class="mini">关闭</button>
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <button id="browseUp" class="mini">↑ 上一级</button>
+      <button id="browseRoot" class="mini">磁盘列表</button>
+      <span class="crumb grow" id="browseCrumb"></span>
+    </div>
+    <div class="row" style="margin-bottom:8px" id="browseQuick"></div>
+    <div id="browseList" class="browselist"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const __boot = () => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const API = (p, body) => fetch(p, body ? {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  } : {}).then(async r => {
+    const t = await r.text();
+    try { return JSON.parse(t); } catch (e) { throw new Error('响应不是 JSON: ' + t.slice(0, 200)); }
+  });
+
+  const S = {
+    src: null, info: null, duration: 0,
+    cuts: [],            // 切点（升序，秒）
+    errs: new Set(),     // 错误段的 key（用段起始时间 toFixed(3) 标识，改切点后尽量保留）
+    endCutTime: null,    // 「结尾打点」：只导出到该点，之后的视频不切片、不烧录
+    startCutTime: null,  // 「起点」：之前的内容不导出，编号从起点那段重新从 1 开始
+    segs: [],            // 派生分段（含 num / err）
+    selCut: -1,
+    lastMarkAt: 0,
+  };
+
+  const MIN_GAP = 1.0;        // 相邻切点最小间隔（秒）
+  const THROTTLE_MS = 250;    // 全局节流
+  const WHEEL_REARM_MS = 400; // 一次滚动手势 = 一次打点
+  const TOUCH_THRESHOLD = 40; // 下滑像素阈值
+
+  // ---------- 基础工具 ----------
+  const pad = n => String(n).padStart(2, '0');
+  function tc(t){
+    t = Math.max(0, t || 0);
+    const h = Math.floor(t/3600), m = Math.floor(t%3600/60), s = Math.floor(t%60), cc = Math.round((t%1)*100);
+    return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(cc)}`;
+  }
+  const fx = t => (+t).toFixed(2);
+  const segKey = t => (+t).toFixed(3);
+
+  let ft = null;
+  function flash(msg){
+    const el = $('flash'); el.textContent = msg; el.classList.add('on');
+    clearTimeout(ft); ft = setTimeout(() => el.classList.remove('on'), 1900);
+  }
+  function setStep(n){
+    document.querySelectorAll('.step').forEach(e => {
+      const s = +e.dataset.s;
+      e.classList.toggle('active', s === n);
+      e.classList.toggle('done', s < n);
+    });
+  }
+
+  // ---------- 分段派生 + 编号 ----------
+  // 编号规则：从 1 递增；某段标错后，下一段重新从 1 开始；错误段本身仍编号。
+  // 「起点」：只从起点开始分段，之前的内容不导出，编号也从起点那段重新从 1 开始。
+  // 「结尾打点」：只分到结尾点，之后的视频完全不参与导出。
+  const isEndCut = t => S.endCutTime != null && Math.abs(+t - S.endCutTime) < 0.0006;
+  const isStartCut = t => S.startCutTime != null && Math.abs(+t - S.startCutTime) < 0.0006;
+  function rebuild(){
+    const D = S.duration || 0;
+    const cuts = S.cuts.slice().sort((a, b) => a - b).filter(t => t > 0.02 && t < D - 0.02);
+    S.cuts = cuts;
+    let endT = (S.endCutTime != null) ? +S.endCutTime : null;
+    if (endT != null && !(endT > 0.02 && endT < D - 0.02)) endT = null;   // 结尾点失效则忽略
+    let startT = (S.startCutTime != null) ? +S.startCutTime : null;
+    if (startT != null && !(startT > 0.02 && startT < D - 0.02)) startT = null;   // 起点失效则忽略
+    if (startT != null && endT != null && startT >= endT - 1e-6) endT = null;     // 起点跑到结尾之后 → 结尾作废
+    S.endCutTime = endT;
+    S.startCutTime = startT;
+    const usable = cuts.filter(t =>
+      (startT == null || t > startT + 1e-6) && (endT == null || t < endT - 1e-6));
+    const b = [(startT == null ? 0 : startT), ...usable, (endT == null ? D : endT)];
+    const segs = [];
+    for (let i = 0; i < b.length - 1; i++){
+      const start = b[i], end = b[i + 1];
+      if (end - start < 0.02) continue;
+      segs.push({ seq: segs.length + 1, start: +start.toFixed(3), end: +end.toFixed(3), dur: +(end - start).toFixed(3) });
+    }
+    let counter = 1;
+    for (const s of segs){
+      s.err = S.errs.has(segKey(s.start));
+      s.num = counter;
+      counter = s.err ? 1 : counter + 1;
+    }
+    S.segs = segs;
+    scheduleSave();        // 每次改动（打点/拖动/删改/标错）都自动存档
+    return segs;
+  }
+
+  // ---------- 打点存档：自动保存 / 导出 / 导入 ----------
+  // 存的是「切点 + 错误段起始时间」，按源文件路径分档存在浏览器 localStorage，
+  // 页面崩了/刷新了/关掉了都能找回来；也可以导出成 JSON 文件备份或换机器。
+  const MARKS_LS = 'cutTool.marks.v1';
+  const MARKS_KEEP = 5;          // 最多保留几个源文件的存档
+  let saveTimer = null;
+
+  function marksStore(){
+    try {
+      const o = JSON.parse(localStorage.getItem(MARKS_LS) || '{}');
+      return (o && typeof o === 'object') ? o : {};
+    } catch (e) { return {}; }
+  }
+  function marksEntry(src){
+    const st = marksStore();
+    return (src && st[src]) ? st[src] : null;
+  }
+  function marksSortedKeys(st){
+    return Object.keys(st).sort((a, b) => String((st[b] || {}).savedAt || '').localeCompare(String((st[a] || {}).savedAt || '')));
+  }
+  function saveSession(){
+    if (!S.src || !S.duration) return;
+    const st = marksStore();
+    st[S.src] = {
+      source: S.src,
+      duration: +S.duration.toFixed(3),
+      cuts: S.cuts.slice(),
+      errors: S.segs.filter(s => s.err).map(s => +s.start.toFixed(3)),
+      end: S.endCutTime,          // 结尾打点（null = 导出到视频末尾）
+      start: S.startCutTime,      // 起点（null = 从视频开头导出；编号从起点那段重新从 1 开始）
+      savedAt: new Date().toISOString(),
+    };
+    for (const k of marksSortedKeys(st).slice(MARKS_KEEP)) delete st[k];
+    try { localStorage.setItem(MARKS_LS, JSON.stringify(st)); } catch (e) {}
+  }
+  function scheduleSave(){        // 拖动切点时会高频触发，做个轻节流
+    if (!S.src || !S.duration) return;
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => { saveTimer = null; saveSession(); renderMarkSaveInfo(); }, 400);
+  }
+  function flushSave(){ if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } saveSession(); }
+  window.addEventListener('pagehide', flushSave);
+  window.addEventListener('beforeunload', flushSave);
+
+  /** 把一份存档填进当前状态（切点 + 错误标记 + 起点 + 结尾点） */
+  function applyMarks(entry){
+    const D = S.duration || 0;
+    const cuts = (entry && entry.cuts || []).map(Number).filter(n => isFinite(n) && n > 0.02 && n < D - 0.02);
+    cuts.sort((a, b) => a - b);
+    S.cuts = cuts;
+    S.errs = new Set((entry && entry.errors || []).map(Number).filter(n => isFinite(n)).map(t => segKey(t)));
+    const endT = (entry && entry.end != null) ? Number(entry.end) : NaN;
+    S.endCutTime = (isFinite(endT) && endT > 0.02 && endT < D - 0.02) ? +endT.toFixed(3) : null;
+    const startT = (entry && entry.start != null) ? Number(entry.start) : NaN;
+    S.startCutTime = (isFinite(startT) && startT > 0.02 && startT < D - 0.02) ? +startT.toFixed(3) : null;
+    if (S.startCutTime != null && S.endCutTime != null && S.startCutTime >= S.endCutTime) S.endCutTime = null;
+    S.selCut = -1;
+  }
+  /** 载入源文件后自动找回同源存档；返回是否恢复 */
+  function autoRestore(src){
+    const e = marksEntry(src);
+    if (!e || !((e.cuts || []).length || (e.errors || []).length || e.end != null || e.start != null)) return false;
+    applyMarks(e);
+    return true;
+  }
+  function renderMarkSaveInfo(){
+    const el = $('markSaveInfo');
+    if (!el) return;
+    if (!S.src) { el.textContent = '打点会自动存在本机浏览器里'; return; }
+    const e = marksEntry(S.src);
+    if (!e) { el.textContent = '本机暂无该视频的存档'; return; }
+    const d = new Date(e.savedAt);
+    const p = n => String(n).padStart(2, '0');
+    el.textContent = `已自动保存 ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+      + ` · ${(e.cuts || []).length} 切点 / ${(e.errors || []).length} 错误标记`;
+  }
+
+  function marksFileName(){
+    const base = String(S.src || 'marks').split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || 'marks';
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const ts = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+    return `打点_${base}_${ts}.json`;
+  }
+  function exportMarks(){
+    if (!S.duration) return flash('请先载入视频');
+    saveSession(); renderMarkSaveInfo();
+    const data = {
+      tool: '童站挑战剪辑器', type: 'marks', version: 1,
+      source: S.src,
+      duration: +S.duration.toFixed(3),
+      cuts: S.cuts.slice(),
+      errors: S.segs.filter(s => s.err).map(s => +s.start.toFixed(3)),
+      end: S.endCutTime,          // 结尾打点（null = 导出到视频末尾）
+      start: S.startCutTime,      // 起点（null = 从视频开头导出）
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = marksFileName();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    flash(`已导出打点文件（${data.cuts.length} 切点 / ${data.errors.length} 错误标记）`);
+  }
+  function importMarksFile(file){
+    const fr = new FileReader();
+    fr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(String(fr.result)); } catch (e) { return flash('这个文件不是合法 JSON'); }
+      if (!data || !Array.isArray(data.cuts)) return flash('文件里没有 cuts 数组，可能不是打点文件');
+      const D = S.duration || 0;
+      const raw = data.cuts.map(Number).filter(n => isFinite(n));
+      const cuts = raw.filter(t => t > 0.02 && t < D - 0.02).sort((a, b) => a - b);
+      const dropped = raw.length - cuts.length;
+      const errs = (Array.isArray(data.errors) ? data.errors : []).map(Number).filter(n => isFinite(n));
+      const endRaw = (data.end != null) ? Number(data.end) : NaN;
+      const endT = (isFinite(endRaw) && endRaw > 0.02 && endRaw < D - 0.02) ? +endRaw.toFixed(3) : null;
+      const startRaw = (data.start != null) ? Number(data.start) : NaN;
+      const startT = (isFinite(startRaw) && startRaw > 0.02 && startRaw < D - 0.02) ? +startRaw.toFixed(3) : null;
+      const sameSrc = !data.source || String(data.source) === String(S.src);
+      const ok = confirm('【导入打点】\n'
+        + `文件：${file.name}\n`
+        + `存档来源：${data.source || '（未标注）'}${data.duration ? `（${tc(data.duration)}）` : ''}\n`
+        + `切点 ${cuts.length} 个${dropped ? `（另有 ${dropped} 个超出当前视频时长，将忽略）` : ''} · 错误标记 ${errs.length} 个\n`
+        + `范围：${startT != null ? tc(startT) + '（起点）' : '视频开头'} → ${endT != null ? tc(endT) + '（结尾）' : '视频末尾'}\n`
+        + (sameSrc ? '' : `\n⚠ 这份存档来自另一个视频，当前是：${S.src}\n`)
+        + '\n导入会替换当前所有切点、错误标记、起点与结尾设置。继续？');
+      if (!ok) return;
+      S.cuts = cuts;
+      S.errs = new Set(errs.map(t => segKey(t)));
+      S.startCutTime = startT;
+      S.endCutTime = (startT != null && endT != null && startT >= endT) ? null : endT;
+      S.selCut = -1;
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+      saveSession(); renderMarkSaveInfo();
+      flash(`已导入：${cuts.length} 个切点 / ${errs.length} 个错误标记`
+        + (startT != null ? ` / 起点 ${tc(startT)}` : '') + (endT != null ? ` / 结尾 ${tc(endT)}` : ''));
+    };
+    fr.onerror = () => flash('读取文件失败');
+    fr.readAsText(file);
+  }
+
+  $('expMarksBtn').onclick = exportMarks;
+  $('impBtn').onclick = () => {
+    if (!S.duration) return flash('请先载入视频');
+    $('impFile').click();
+  };
+  $('impFile').onchange = e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';                   // 允许连续导入同一个文件
+    if (f) importMarksFile(f);
+  };
+  $('restoreBtn').onclick = () => {
+    if (!S.duration) return flash('请先载入视频');
+    const st = marksStore();
+    const keys = marksSortedKeys(st);
+    if (!keys.length) return flash('本机还没有任何打点存档');
+    const src0 = keys[0], e0 = st[src0] || {};
+    const same = src0 === S.src;
+    const d = e0.savedAt ? new Date(e0.savedAt) : null;
+    const ok = confirm('【恢复上次存档】\n'
+      + `来源：${src0}\n`
+      + `切点 ${(e0.cuts || []).length} 个 · 错误标记 ${(e0.errors || []).length} 个\n`
+      + `范围：${e0.start != null ? tc(+e0.start) + '（起点）' : '视频开头'} → ${e0.end != null ? tc(+e0.end) + '（结尾）' : '视频末尾'}`
+      + (d ? ` · 保存于 ${d.toLocaleString()}` : '') + '\n'
+      + (same ? '' : '\n⚠ 这是另一个视频的存档，仍要套用到当前视频吗？\n')
+      + '\n恢复会替换当前所有切点、错误标记、起点与结尾设置。继续？');
+    if (!ok) return;
+    applyMarks(e0);
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+    saveSession(); renderMarkSaveInfo();
+    flash('已恢复存档');
+  };
+
+  // ---------- 时间轴渲染 ----------
+  function renderTL(){
+    const tl = $('tl'), d = S.duration || 1;
+    tl.querySelectorAll('.segblk,.cutnode,.tailmask,.headmask').forEach(n => n.remove());
+    const phv = $('ph');
+    S.segs.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'segblk' + (s.err ? ' err' : '');
+      el.style.left = (s.start / d * 100) + '%';
+      el.style.width = ((s.end - s.start) / d * 100) + '%';
+      el.innerHTML = `<span class="segno">#${s.seq}<br><em>${s.num}</em></span>`;
+      el.title = `#${s.seq} ${tc(s.start)} → ${tc(s.end)} · 编号 ${s.num}${s.err ? ' · 错误' : ''}`;
+      el.onclick = () => { $('video').currentTime = s.start; flash('跳到 #' + s.seq); };
+      tl.insertBefore(el, phv);
+    });
+    S.cuts.forEach((t, i) => {
+      const el = document.createElement('div');
+      const isEnd = isEndCut(t), isStart = isStartCut(t);
+      el.className = 'cutnode' + (i === S.selCut ? ' sel' : '') + (isEnd ? ' end' : '') + (isStart ? ' start' : '');
+      el.style.left = (t / d * 100) + '%';
+      el.title = '切点 ' + tc(t) + (isStart ? '（起点：之前不导出）' : '') + (isEnd ? '（结尾：之后不导出）' : '')
+        + ((isStart || isEnd) ? '' : '（拖动调整）');
+      el.dataset.i = i;
+      el.onmousedown = e => { e.stopPropagation(); startDrag(e, i); };
+      tl.insertBefore(el, phv);
+    });
+    if (S.startCutTime != null) {
+      const m = document.createElement('div');
+      m.className = 'headmask';
+      m.style.left = '0';
+      m.style.width = (S.startCutTime / d * 100) + '%';
+      m.innerHTML = '<span>起点之前不导出</span>';
+      m.title = '起点之前不导出：' + tc(0) + ' → ' + tc(S.startCutTime);
+      tl.insertBefore(m, phv);
+    }
+    if (S.endCutTime != null) {
+      const m = document.createElement('div');
+      m.className = 'tailmask';
+      m.style.left = (S.endCutTime / d * 100) + '%';
+      m.style.right = '0';
+      m.innerHTML = '<span>结尾之后不导出</span>';
+      m.title = '结尾之后不导出：' + tc(S.endCutTime) + ' → ' + tc(S.duration);
+      tl.insertBefore(m, phv);
+    }
+    $('curt').textContent = tc($('video').currentTime || 0) + ' / ' + tc(S.duration);
+    applyPlaying(true, false);      // 块重建后把「当前段」高亮补上（不滚动）
+  }
+
+  function startDrag(e, i){
+    e.preventDefault();
+    const wasEnd = isEndCut(S.cuts[i]);      // 正在拖的是结尾点 → 跟着走
+    const wasStart = isStartCut(S.cuts[i]);  // 正在拖的是起点 → 也跟着走
+    S.selCut = i; renderTL();
+    const tl = $('tl');
+    const move = ev => {
+      const r = tl.getBoundingClientRect();
+      const x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+      const t = Math.min(S.duration, Math.max(0, x / r.width * S.duration));
+      S.cuts[i] = +t.toFixed(3);
+      if (wasEnd) S.endCutTime = +t.toFixed(3);
+      if (wasStart) S.startCutTime = +t.toFixed(3);
+      S.cuts.sort((a, b) => a - b);
+      S.selCut = S.cuts.indexOf(+t.toFixed(3));
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', up);
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+      if (S.selCut >= 0 && S.cuts[S.selCut] != null) flash('切点已更新为 ' + tc(S.cuts[S.selCut]));
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', up);
+  }
+
+  // 时间轴 hover 提示 + 点击定位
+  $('tl').addEventListener('mousemove', e => {
+    const tl = $('tl'), r = tl.getBoundingClientRect();
+    const frac = (e.clientX - r.left) / r.width;
+    if (frac < 0 || frac > 1 || !S.duration) return;
+    const tip = $('tltip');
+    tip.style.display = 'block';
+    tip.style.left = (frac * 100) + '%';
+    tip.textContent = tc(frac * S.duration);
+  });
+  $('tl').addEventListener('mouseleave', () => { $('tltip').style.display = 'none'; });
+  $('tl').addEventListener('click', e => {
+    if (!S.duration) return;
+    if (e.target.classList.contains('cutnode') || e.target.classList.contains('segblk')) return;
+    const r = $('tl').getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    $('video').currentTime = frac * S.duration;
+  });
+
+  // ---------- 打点列表 ----------
+  function renderMarks(){
+    const tb = $('markBody');
+    tb.innerHTML = '';
+    $('markEmpty').style.display = S.cuts.length ? 'none' : 'block';
+    S.cuts.forEach((t, i) => {
+      const tr = document.createElement('tr');
+      const isEnd = isEndCut(t), isStart = isStartCut(t);
+      if (i === S.selCut) tr.className = 'sel';
+      if (isEnd) tr.className = (tr.className ? tr.className + ' ' : '') + 'endrow';
+      if (isStart) tr.className = (tr.className ? tr.className + ' ' : '') + 'startrow';
+      tr.innerHTML = `
+        <td class="num">#${i + 1}</td>
+        <td class="num">${tc(t)}</td>
+        <td class="num">${fx(t)}</td>
+        <td><div class="row" style="justify-content:flex-end">
+          ${isStart ? '<span class="tag" style="background:#4f8cff22;border-color:#4f8cff66;color:#bcd4ff">起点</span>' : ''}
+          ${isEnd ? '<span class="tag" style="background:#37d39b22;border-color:#37d39b66;color:#8ef0c8">结尾</span>' : ''}
+          <button class="mini ${isStart ? '' : 'ghost'}" data-start="${i}"
+            title="把这里设为起点：之前的内容不切片、不烧录，编号从这段重新从 1 开始；再点一次取消">${isStart ? '取消起点' : '设为起点'}</button>
+          <button class="mini ${isEnd ? '' : 'ghost'}" data-end="${i}"
+            title="把这里设为结尾：之后的视频不切片、不烧录；再点一次取消">${isEnd ? '取消结尾' : '设为结尾'}</button>
+          <button class="mini" data-seek="${t}">跳转</button>
+          <button class="mini danger" data-del="${i}">删除</button>
+        </div></td>`;
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('[data-seek]').forEach(b => b.onclick = () => { $('video').currentTime = +b.dataset.seek; });
+    tb.querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
+      const t = S.cuts[+b.dataset.start];
+      if (t == null) return;
+      if (isStartCut(t)) {
+        S.startCutTime = null;
+        rebuild(); renderTL(); renderMarks(); renderSegs();
+        flash('已取消起点，恢复从视频开头导出');
+      } else {
+        const newStart = +(+t).toFixed(3);
+        const lost = S.segs.filter(s => s.err && s.start < newStart - 1e-6).length;   // 起点之前的错误标记会失效
+        S.startCutTime = newStart;
+        let extra = '';
+        if (S.endCutTime != null && S.endCutTime <= S.startCutTime) { S.endCutTime = null; extra = '（原「结尾」在它之前，已一并取消）'; }
+        if (lost) extra += `（起点之前的 ${lost} 个错误标记已失效）`;
+        flash(`已把 ${tc(+t)} 设为起点：之前的内容不导出，编号从这段重新从 1 开始${extra}`);
+        rebuild(); renderTL(); renderMarks(); renderSegs();
+      }
+    });
+    tb.querySelectorAll('[data-end]').forEach(b => b.onclick = () => {
+      const t = S.cuts[+b.dataset.end];
+      if (t == null) return;
+      if (isEndCut(t)) {
+        S.endCutTime = null;
+        rebuild(); renderTL(); renderMarks(); renderSegs();
+        flash('已取消结尾，恢复导出到视频末尾');
+      } else {
+        S.endCutTime = +(+t).toFixed(3);
+        let extra = '';
+        if (S.startCutTime != null && S.endCutTime <= S.startCutTime) { S.startCutTime = null; extra = '（原「起点」在它之后，已一并取消）'; }
+        rebuild(); renderTL(); renderMarks(); renderSegs();
+        flash(`已把 ${tc(+t)} 设为结尾：之后的内容不切片、不烧录${extra}`);
+      }
+    });
+    tb.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+      const idx = +b.dataset.del;
+      const wasEnd = isEndCut(S.cuts[idx]);
+      const wasStart = isStartCut(S.cuts[idx]);
+      S.cuts.splice(idx, 1);
+      if (wasEnd) S.endCutTime = null;
+      if (wasStart) S.startCutTime = null;
+      S.selCut = -1;
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+      const marks = [wasStart ? '起点' : '', wasEnd ? '结尾' : ''].filter(Boolean).join(' 和 ');
+      flash(marks ? `已删除该切点（它同时是「${marks}」，已取消）` : '已删除该切点');
+    });
+    $('markInfo').innerHTML = `
+      <b>总时长</b><span>${tc(S.duration)}（${fx(S.duration)} s）</span>
+      <b>切点数量</b><span>${S.cuts.length}</span>
+      <b>切片数量</b><span>${S.segs.length} 段</span>
+      <b>导出范围</b><span>${(S.startCutTime != null || S.endCutTime != null)
+        ? `${S.startCutTime != null ? tc(S.startCutTime) : '00:00.00'}（${S.startCutTime != null ? '起点' : '开头'}）`
+          + ` → ${S.endCutTime != null ? tc(S.endCutTime) + '（结尾）' : tc(S.duration) + '（视频末尾）'}`
+        : `00:00.00 → ${tc(S.duration)}（整段视频）`}</span>
+      <b>选中切点</b><span>${S.selCut >= 0 && S.cuts[S.selCut] != null ? '#' + (S.selCut + 1) + ' @ ' + tc(S.cuts[S.selCut]) : '未选中'}</span>`;
+    renderMarkSaveInfo();
+  }
+
+  // ---------- 当前播放的段：列表 & 时间轴高亮 + 播放时自动跟随 ----------
+  let playIdx = -1;            // 当前高亮的段下标
+  let lastUserScroll = 0;      // 用户手动滚动审核栏的时间（自动跟随的保护）
+  let selfScrolling = false;   // 自己触发的滚动不当作「用户滚动」
+  function currentSegIdx(){
+    if (!S.segs.length) return -1;
+    const t = $('video').currentTime || 0;
+    let i = S.segs.findIndex(x => t >= x.start && t < x.end);
+    if (i < 0) i = S.segs.length - 1;      // 播放头在结尾之后 → 算最后一段
+    return i;
+  }
+  function applyPlaying(force, scroll){
+    const idx = currentSegIdx();
+    const changed = (idx !== playIdx);
+    playIdx = idx;
+    [...document.querySelectorAll('#segBody tr')].forEach((tr, i) => tr.classList.toggle('playing', i === idx));
+    [...document.querySelectorAll('#tl .segblk')].forEach((el, i) => el.classList.toggle('cur', i === idx));
+    if (!scroll || idx < 0 || (!changed && !force)) return;
+    if ($('video').paused && !force) return;                        // 暂停时不抢滚动（除非点了「跳到」）
+    if (Date.now() - lastUserScroll < 8000) return;                  // 用户刚滚过，先别抢
+    const rows = [...document.querySelectorAll('#segBody tr')];
+    const row = rows[idx];
+    const box = $('segBody').closest('.scroll');
+    if (!row || !box) return;
+    const r = row.getBoundingClientRect(), b = box.getBoundingClientRect();
+    if (r.top >= b.top + 4 && r.bottom <= b.bottom - 4) return;       // 已经看得见
+    selfScrolling = true;
+    box.scrollTop = box.scrollTop + (r.top - b.top) - (box.clientHeight - r.height) / 2;
+    setTimeout(() => { selfScrolling = false; }, 150);
+  }
+  document.addEventListener('scroll', e => {
+    const box = e.target;
+    if (selfScrolling) return;
+    if (box && box.classList && box.classList.contains('scroll') && box.closest && box.closest('.auditbox')) {
+      lastUserScroll = Date.now();
+    }
+  }, true);
+
+  // ---------- 分段表（含错误开关 / 跳到 / 截断 / 删点）----------
+  /** 紧凑时间码：mm:ss（超过 1 小时才带时） */
+  function tcShort(t){
+    t = Math.max(0, t || 0);
+    const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+    const p = n => String(n).padStart(2, '0');
+    return (h ? h + ':' + p(m) : m) + ':' + p(s);
+  }
+  function renderSegs(){
+    const tb = $('segBody');
+    tb.innerHTML = '';
+    $('segEmpty').style.display = S.segs.length ? 'none' : 'block';
+    S.segs.forEach(s => {
+      const tr = document.createElement('tr');
+      if (s.err) tr.className = 'err';
+      tr.title = `#${s.seq} ${tc(s.start)} → ${tc(s.end)}（${fx(s.dur)}s）`;
+      tr.innerHTML = `
+        <td class="num">#${s.seq}</td>
+        <td class="num">${tcShort(s.start)}→${tcShort(s.end)}</td>
+        <td><span class="badge${s.err ? ' err' : ''}">${s.err ? '❌' : '✅'} ${s.num}</span></td>
+        <td>
+          <span class="switch${s.err ? ' on' : ''}" data-err="${s.seq}">
+            <span class="track"></span><span>${s.err ? '错误' : '正常'}</span>
+          </span>
+        </td>
+        <td><div class="row" style="justify-content:flex-end;gap:5px">
+          <button class="mini" data-seek="${s.start}" title="跳到这一段开头">跳到</button>
+          <button class="mini" data-cut="${s.seq}" title="在这一段末尾补一个切点">截断</button>
+          <button class="mini danger" data-delcut="${s.seq}" title="删掉这一段末尾的切点：这一段会和下一段合并">✂ 删点</button>
+        </div></td>`;
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('[data-err]').forEach(el => el.onclick = () => toggleErr(+el.dataset.err));
+    tb.querySelectorAll('[data-seek]').forEach(b => b.onclick = () => { $('video').currentTime = +b.dataset.seek; });
+    tb.querySelectorAll('[data-cut]').forEach(b => b.onclick = () => {
+      const s = S.segs.find(x => x.seq === +b.dataset.cut);
+      if (!s) return;
+      const t = +s.end.toFixed(3);
+      if (t <= 0.05 || t >= S.duration - 0.05) return flash('该位置已是视频结尾');
+      if (S.cuts.some(c => Math.abs(c - t) < 0.05)) return flash('该位置已有切点');
+      S.cuts.push(t); S.cuts.sort((a, b) => a - b);
+      S.selCut = S.cuts.indexOf(t);
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+      flash('已在 ' + tc(t) + ' 截断');
+    });
+    // 删点：删掉这一段末尾的切点（与下一段合并）
+    tb.querySelectorAll('[data-delcut]').forEach(b => b.onclick = () => {
+      const idx = S.segs.findIndex(x => x.seq === +b.dataset.delcut);
+      const s = S.segs[idx];
+      if (!s) return;
+      const cut = +s.end.toFixed(3);
+      const ci = S.cuts.findIndex(c => Math.abs(c - cut) < 0.0006);
+      if (ci < 0) {
+        return flash(S.endCutTime != null && Math.abs(cut - S.endCutTime) < 0.0006
+          ? '这一段末尾是「结尾」点，请用下方切点列表的「取消结尾」'
+          : '这一段末尾不是切点（是视频结尾），没有可删的打点');
+      }
+      const wasEnd = isEndCut(S.cuts[ci]);
+      const next = S.segs[idx + 1];
+      const nextErr = next ? S.errs.has(segKey(next.start)) : false;
+      if (!confirm(`删掉 ${tc(cut)} 这个打点？\n第 ${s.seq} 段会和下一段合并成一段。`
+        + (wasEnd ? '\n⚠ 它同时是「结尾」点，删除后「结尾」会一并取消。' : '')
+        + (nextErr ? `\n⚠ 第 ${next.seq} 段的错误标记会一并清除（它的起点变了）。` : ''))) return;
+      S.cuts.splice(ci, 1);
+      if (wasEnd) S.endCutTime = null;
+      S.selCut = -1;
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+      flash(`已删除打点 ${tc(cut)}：第 ${s.seq} 段与下一段合并` + (wasEnd ? '（同时取消「结尾」）' : ''));
+    });
+    updateSegStat();
+    applyPlaying(true);
+  }
+
+  function toggleErr(seq){
+    const s = S.segs.find(x => x.seq === seq);
+    if (!s) return;
+    const k = segKey(s.start);
+    if (S.errs.has(k)) S.errs.delete(k); else S.errs.add(k);
+    rebuild(); renderTL(); renderSegs();
+  }
+
+  function updateSegStat(){
+    const n = S.segs.length, e = S.segs.filter(s => s.err).length;
+    const rangeTxt = (S.startCutTime != null || S.endCutTime != null)
+      ? `导出 ${S.startCutTime != null ? tc(S.startCutTime) : '00:00.00'} → ${S.endCutTime != null ? tc(S.endCutTime) : tc(S.duration)}`
+        + ((S.startCutTime != null && S.endCutTime != null) ? '（起点之后起编号、结尾之后不导出）'
+          : (S.startCutTime != null ? '（起点之后起编号）' : '（结尾之后不导出）'))
+      : '整段视频';
+    $('segStat').textContent = `共 ${n} 段 · 正常 ${n - e} 段（✅）· 错误 ${e} 段（❌）· ${rangeTxt}`;
+    $('renderBtn').disabled = !n;
+    const od = ($('outDir').value || '（未填）').replace(/[\\/]+$/, '');
+    const bnOn = typeof bnReady !== 'undefined' && bnReady && $('bnOnWrap').classList.contains('on');
+    const bnClean = bnOn && $('bnCleanWrap').classList.contains('on');
+    $('planInfo').innerHTML = n
+      ? (bnOn
+        ? `本次将输出：烧录切片 <b>${n}</b> 个（✅/❌ + 编号${$('bnSfxWrap').classList.contains('on') ? ' + 对/错音效' : ''}）→ <code>${od}\\clips_burned\\</code>`
+          + (bnClean ? ` · 干净切片 <b>${n}</b> 个 → <code>${od}\\clips\\</code>` : ' · <b>不输出</b>干净切片')
+        : `⚠ 烧录已关闭：本次只输出干净切片 <b>${n}</b> 个 → <code>${od}\\clips\\</code>（没有 ✅/❌ 标记）`)
+        + `<br>范围：00:00.00 → ${S.endCutTime != null ? tc(S.endCutTime) + '（<b>结尾之后不导出</b>）' : tc(S.duration) + '（视频末尾）'}`
+        + (typeof bnReady !== 'undefined' && bnReady && $('mgOnWrap').classList.contains('on')
+          ? ` · 导出后自动<b>合并成一条成片</b>（童站挑战视频）` : '')
+      : '';
+  }
+
+  // ---------- 烧录标记（✅/❌ + 编号 + 音效）----------
+  const BURN_LS = 'cutTool.burn.v1';
+  const ANCHOR_LIST = ['top-left', 'top-center', 'top-right', 'mid-left', 'center', 'mid-right', 'bottom-left', 'bottom-center', 'bottom-right'];
+  const ANCHOR_LABEL = { 'top-left': '↖', 'top-center': '↑', 'top-right': '↗', 'mid-left': '←', 'center': '居中', 'mid-right': '→', 'bottom-left': '↙', 'bottom-center': '↓', 'bottom-right': '↘' };
+  let bnReady = false;
+  const BN = {
+    enabled: true, writeClean: true, badgeScale: 22, numberSize: 5.5, gap: 1.2,
+    order: 'badgeTop', badgeStyle: 'emoji', anchor: 'bottom-center',
+    offsetX: 0, offsetY: -6, numberColor: '#FFFFFF', numberStroke: '#000000', strokeWidth: 0.4,
+    delay: 0.5, sfxEnabled: true, sfxOkPath: '', sfxNoPath: '', sfxVolume: 100,
+    numDelay: 0,          // 编号出现延迟（默认 0：第一帧就有）
+    badgeShow: 3,         // 符号显示时长（出现后多少秒消失；0=不消失）
+    numberShow: 0,        // 编号显示时长（0=不消失，一直显示到片尾）
+    merge: true,          // 导出后自动把切片合并成一条成片
+  };
+
+  function buildGrid(){
+    const g = $('bnGrid');
+    g.innerHTML = '';
+    ANCHOR_LIST.forEach(a => {
+      const b = document.createElement('button');
+      b.textContent = ANCHOR_LABEL[a]; b.title = a; b.dataset.anchor = a;
+      b.onclick = () => { BN.anchor = a; markGrid(); onBurnChange(); };
+      g.appendChild(b);
+    });
+    markGrid();
+  }
+  function markGrid(){
+    $('bnGrid').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.anchor === BN.anchor));
+  }
+  function loadBurnLS(){
+    try { const o = JSON.parse(localStorage.getItem(BURN_LS) || '{}'); Object.assign(BN, o || {}); } catch (e) {}
+  }
+  function saveBurnLS(){ try { localStorage.setItem(BURN_LS, JSON.stringify(BN)); } catch (e) {} }
+
+  function readBurnUI(){
+    const num = (id, dft) => { const v = parseFloat($(id).value); return isFinite(v) ? v : dft; };
+    BN.enabled = $('bnOnWrap').classList.contains('on');
+    BN.writeClean = $('bnCleanWrap').classList.contains('on');
+    BN.badgeScale = num('bnScale', BN.badgeScale);
+    BN.numberSize = num('bnNumSize', BN.numberSize);
+    BN.gap = num('bnGap', BN.gap);
+    BN.order = $('bnOrder').value;
+    BN.badgeStyle = $('bnStyle').value;
+    BN.offsetX = num('bnOffX', 0);
+    BN.offsetY = num('bnOffY', 0);
+    BN.numberColor = $('bnColor').value;
+    BN.numberStroke = $('bnStroke').value;
+    BN.strokeWidth = num('bnStrokeW', BN.strokeWidth);
+    BN.delay = num('bnDelay', BN.delay);
+    BN.numDelay = num('bnNumDelay', BN.numDelay);
+    BN.badgeShow = num('bnShow', BN.badgeShow);
+    BN.numberShow = num('bnNumShow', BN.numberShow);
+    BN.merge = $('mgOnWrap').classList.contains('on');
+    BN.sfxEnabled = $('bnSfxWrap').classList.contains('on');
+    BN.sfxOkPath = $('bnSfxOk').value.trim();
+    BN.sfxNoPath = $('bnSfxNo').value.trim();
+    BN.sfxVolume = num('bnSfxVol', 100);
+    return BN;
+  }
+  function applyBurnUI(){
+    $('bnOnWrap').classList.toggle('on', BN.enabled);
+    $('bnCleanWrap').classList.toggle('on', BN.writeClean);
+    $('bnSfxWrap').classList.toggle('on', BN.sfxEnabled);
+    $('bnScale').value = BN.badgeScale;
+    $('bnNumSize').value = BN.numberSize;
+    $('bnGap').value = BN.gap;
+    $('bnOrder').value = BN.order;
+    $('bnStyle').value = BN.badgeStyle;
+    $('bnOffX').value = BN.offsetX;
+    $('bnOffY').value = BN.offsetY;
+    $('bnColor').value = BN.numberColor;
+    $('bnStroke').value = BN.numberStroke;
+    $('bnStrokeW').value = BN.strokeWidth;
+    $('bnDelay').value = BN.delay;
+    $('bnNumDelay').value = BN.numDelay;
+    $('bnShow').value = BN.badgeShow;
+    $('bnNumShow').value = BN.numberShow;
+    $('mgOnWrap').classList.toggle('on', BN.merge !== false);
+    $('bnSfxOk').value = BN.sfxOkPath;
+    $('bnSfxNo').value = BN.sfxNoPath;
+    $('bnSfxVol').value = BN.sfxVolume;
+    markGrid();
+    bnReady = true;
+    updateSegStat();
+  }
+  function onBurnChange(){
+    readBurnUI(); saveBurnLS(); markGrid(); updateSegStat();
+    $('bnPv').style.display = 'none';      // 配置变了，旧预览作废
+  }
+
+  ['bnOnWrap', 'bnCleanWrap', 'bnSfxWrap', 'mgOnWrap'].forEach(id => { $(id).onclick = () => { $(id).classList.toggle('on'); onBurnChange(); }; });
+  ['bnScale', 'bnNumSize', 'bnGap', 'bnOrder', 'bnStyle', 'bnOffX', 'bnOffY', 'bnColor', 'bnStroke',
+    'bnStrokeW', 'bnDelay', 'bnNumDelay', 'bnShow', 'bnNumShow', 'bnSfxVol', 'bnSfxOk', 'bnSfxNo']
+    .forEach(id => { $(id).oninput = onBurnChange; $(id).onchange = onBurnChange; });
+
+  /** 界面值（百分数）→ 服务端比例值 */
+  function burnPayload(){
+    readBurnUI(); saveBurnLS();
+    return {
+      enabled: BN.enabled,
+      badgeScale: BN.badgeScale / 100,
+      numberSize: BN.numberSize / 100,
+      gap: BN.gap / 100,
+      order: BN.order,
+      anchor: BN.anchor,
+      offsetX: BN.offsetX / 100,
+      offsetY: BN.offsetY / 100,
+      numberColor: BN.numberColor,
+      numberStroke: BN.numberStroke,
+      strokeWidth: BN.strokeWidth / 100,
+      delay: BN.delay,                    // 符号（+音效）出现延迟
+      numberDelay: BN.numDelay,           // 编号出现延迟（默认 0）
+      badgeShow: BN.badgeShow,            // 符号显示时长（0=不消失）
+      numberShow: BN.numberShow,          // 编号显示时长（0=不消失）
+      merge: BN.merge !== false,          // 导出后是否合并成一条成片
+      badgeStyle: BN.badgeStyle,
+      sfxEnabled: BN.sfxEnabled,
+      sfxOkPath: BN.sfxOkPath,
+      sfxNoPath: BN.sfxNoPath,
+      sfxVolume: BN.sfxVolume / 100,
+      writeClean: BN.writeClean,
+    };
+  }
+
+  async function previewBurn(){
+    if (!S.src || !S.info) return flash('请先载入视频');
+    const cfg = burnPayload();
+    const W = S.info.width, H = S.info.height;
+    if (!W || !H) return flash('未获取到视频尺寸');
+    const v = $('video');
+    const t = (v && isFinite(v.currentTime)) ? v.currentTime : 0;
+    const num = (S.segs[0] && S.segs[0].num) || 1;
+    $('bnPv').style.display = 'flex';
+    $('bnPvMsg').textContent = '生成中…';
+    const r = await API('/api/badge-preview', {
+      w: W, h: H, cfg,
+      items: [{ id: 'ok', num, err: false }, { id: 'no', num: 1, err: true }],
+    });
+    if (!r.ok) { $('bnPvMsg').textContent = '预览失败：' + (r.error || ''); return flash('预览失败'); }
+    const ok = (r.items || []).find(x => x.id === 'ok') || {};
+    const no = (r.items || []).find(x => x.id === 'no') || {};
+    $('bnPvImg').src = `/frame?path=${encodeURIComponent(S.src)}&t=${t}&w=480`;
+    // 逐层按真实坐标铺在静帧上（符号/编号各自的图与位置）
+    const layerBox = $('bnPvLayers');
+    layerBox.innerHTML = '';
+    (ok.layers || []).forEach(L => {
+      if (!L.b64) return;
+      const im = document.createElement('img');
+      im.className = 'badgeimg';
+      im.src = 'data:image/png;base64,' + L.b64;
+      im.style.left = (L.x / W * 100) + '%';
+      im.style.top = (L.y / H * 100) + '%';
+      im.style.width = (L.w / W * 100) + '%';
+      layerBox.appendChild(im);
+    });
+    $('bnThumbOk').src = ok.b64 ? 'data:image/png;base64,' + ok.b64 : '';
+    $('bnThumbNo').src = no.b64 ? 'data:image/png;base64,' + no.b64 : '';
+    $('bnPvMsg').textContent = `画面 ${W}×${H} · 风格 ${r.badgeStyle}`
+      + `（静帧示意；符号 ${BN.delay}s 出现${BN.badgeShow > 0 ? `、${BN.badgeShow}s 后消失` : '、不消失'}`
+      + ` / 编号 ${BN.numDelay}s 出现${BN.numberShow > 0 ? `、${BN.numberShow}s 后消失` : '、不消失'}）`
+      + (r.warning ? ' · ⚠ ' + r.warning : '');
+  }
+  $('bnPreviewBtn').onclick = previewBurn;
+
+  // ---------- 载入源文件 ----------
+  $('pickBtn').onclick = () => openBrowse('');
+  $('osBtn').onclick = async () => {
+    flash('若未弹出对话框，请改用「浏览文件…」');
+    const r = await API('/api/pick', {});
+    if (r.error) return flash(r.error);
+    if (!r.path) return flash(r.timeout ? '系统对话框未响应，请改用「浏览文件…」' : '已取消');
+    S.src = r.path;
+    await loadSource();
+  };
+
+  // 内置文件浏览器
+  function openBrowse(dir){ $('browseModal').style.display = 'flex'; browseTo(dir || ''); }
+  function closeBrowse(){ $('browseModal').style.display = 'none'; }
+  $('browseClose').onclick = closeBrowse;
+  $('browseModal').addEventListener('click', e => { if (e.target === $('browseModal')) closeBrowse(); });
+  $('browseRoot').onclick = () => browseTo('');
+
+  function browseRow(icon, name, sub, cls, onPick){
+    const d = document.createElement('div');
+    d.className = 'browseitem' + (cls ? ' ' + cls : '');
+    const ic = document.createElement('span'); ic.textContent = icon;
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = name;
+    d.appendChild(ic); d.appendChild(nm);
+    if (sub){ const s = document.createElement('span'); s.className = 'sz'; s.textContent = sub; d.appendChild(s); }
+    d.onclick = onPick;
+    return d;
+  }
+
+  async function browseTo(dir){
+    const L = $('browseList');
+    L.innerHTML = '<div class="browseitem"><span class="nm">读取中…</span></div>';
+    const r = await API('/api/browse', { dir });
+    if (r.error) { L.innerHTML = ''; L.appendChild(browseRow('⚠', r.error, '', '', () => {})); return; }
+    if (r.kind === 'root'){
+      $('browseCrumb').textContent = '选择磁盘';
+      $('browseUp').disabled = true;
+      L.innerHTML = '';
+      r.drives.forEach(d => L.appendChild(browseRow('💽', d, '', '', () => browseTo(d))));
+      if (!r.drives.length) L.appendChild(browseRow('⚠', '未找到可用磁盘', '', '', () => {}));
+    } else {
+      $('browseCrumb').textContent = r.dir;
+      $('browseUp').disabled = !r.parent;
+      $('browseUp').onclick = () => r.parent && browseTo(r.parent);
+      L.innerHTML = '';
+      r.dirs.forEach(d => L.appendChild(browseRow('📁', d.name, '', '', () => browseTo(d.path))));
+      r.files.forEach(f => L.appendChild(browseRow('🎬', f.name,
+        (f.size / 1048576).toFixed(0) + ' MB', 'file',
+        async () => { closeBrowse(); S.src = f.path; await loadSource(); })));
+      if (!r.dirs.length && !r.files.length) L.appendChild(browseRow('—', '（空目录）', '', '', () => {}));
+    }
+    const Q = $('browseQuick'); Q.innerHTML = '';
+    (r.quick || []).forEach(q => {
+      const b = document.createElement('button');
+      b.className = 'mini'; b.textContent = q.label;
+      b.onclick = () => browseTo(q.dir);
+      Q.appendChild(b);
+    });
+  }
+
+  $('loadBtn').onclick = async () => {
+    const p = $('srcPath').value.trim();
+    if (!p) return flash('请输入路径');
+    const r = await API('/api/resolve', { path: p });
+    if (r.error) return flash(r.error);
+    if (r.kind === 'file') { S.src = r.path; return loadSource(); }
+    if (!r.files.length) return flash('该目录下没有视频文件');
+    const pick = prompt('目录中的视频：\n' + r.files.map((f, i) => `${i + 1}. ${f.name} (${(f.size/1048576).toFixed(0)}MB)`).join('\n') + '\n\n输入序号：');
+    const i = parseInt(pick, 10) - 1;
+    if (i >= 0 && i < r.files.length){ S.src = r.dir + '\\' + r.files[i].name; await loadSource(); }
+  };
+
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', async e => {
+    e.preventDefault();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    if (f.path) { S.src = f.path; return loadSource(); }
+    if (f.size > 60 * 1024 * 1024) {
+      return flash('浏览器拿不到大文件的真实路径，请点「浏览文件…」由服务端直读磁盘（不受大小限制）');
+    }
+    flash('正在上传小文件…');
+    const b64 = toB64(new Uint8Array(await f.arrayBuffer()));
+    const r = await API('/api/import', { name: f.name, dataBase64: b64 });
+    if (r.error) return flash('导入失败: ' + r.error);
+    S.src = r.path;
+    await loadSource();
+  });
+
+  function toB64(u8){
+    let s = ''; const CH = 0x8000;
+    for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+    return btoa(s);
+  }
+
+  async function loadSource(){
+    $('srcinfo').innerHTML = '读取媒体信息…';
+    const r = await API('/api/probe', { path: S.src });
+    if (r.error) { $('srcinfo').textContent = '探测失败: ' + r.error; return; }
+    S.info = r.info; S.duration = r.info.duration;
+    S.cuts = []; S.errs.clear(); S.selCut = -1;
+    const restored = autoRestore(S.src);      // 同一视频的存档自动找回（崩溃/刷新后不丢打点）
+    const v = $('video');
+    v.src = '/media?path=' + encodeURIComponent(S.src);
+    v.load();
+    $('srcinfo').innerHTML = `<b>文件</b> ${S.src}<br>
+      <b>时长</b> ${tc(S.duration)} · <b>分辨率</b> ${r.info.width}×${r.info.height} · <b>视频</b> ${r.info.vcodec} · <b>音频</b> ${r.info.acodec} ${r.info.sampleRate}Hz ${r.info.channels}ch · <b>大小</b> ${(r.info.size/1048576).toFixed(1)}MB`;
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+    setStep(1);
+    flash(restored
+      ? `已载入，并恢复上次打点：${S.cuts.length} 个切点 / ${S.errs.size} 个错误标记`
+      : '已载入，把鼠标放到视频上向下滚动滚轮打点');
+  }
+
+  // ---------- 打点手势 ----------
+  function addMarker(){
+    if (!S.duration) return flash('请先载入视频');
+    const now = performance.now();
+    if (now - S.lastMarkAt < THROTTLE_MS) return;
+    const t = Math.round($('video').currentTime * 100) / 100;
+    if (t <= 0.05 || t >= S.duration - 0.05){ flash('太靠近视频首尾'); S.lastMarkAt = now; return; }
+    if (S.cuts.some(c => Math.abs(c - t) < MIN_GAP)){ flash('与已有切点间隔过近，已去重'); S.lastMarkAt = now; return; }
+    S.cuts.push(t); S.cuts.sort((a, b) => a - b);
+    S.selCut = S.cuts.indexOf(t);
+    S.lastMarkAt = now;
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+    if (S.endCutTime != null && t > S.endCutTime) flash(`已打点 @ ${tc(t)}，但它在「结尾」之后，不会被导出`);
+    else if (S.startCutTime != null && t < S.startCutTime) flash(`已打点 @ ${tc(t)}，但它在「起点」之前，不会被导出`);
+    else flash('已打点 @ ' + tc(t));
+  }
+
+  const stage = $('stage');
+  let wheelLock = false, wheelIdle = null;
+  stage.addEventListener('wheel', e => {
+    if (e.deltaY > 0){                 // 向下滚动 = 打点
+      e.preventDefault();
+      if (!wheelLock){ wheelLock = true; addMarker(); }
+      clearTimeout(wheelIdle);
+      wheelIdle = setTimeout(() => { wheelLock = false; }, WHEEL_REARM_MS);
+    }
+  }, { passive: false });
+
+  let touchStartY = null;
+  stage.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+  stage.addEventListener('touchend', e => {
+    if (touchStartY == null) return;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (dy > TOUCH_THRESHOLD) addMarker();
+    touchStartY = null;
+  });
+
+  // ---------- 快捷键：打点（默认 M）/ 标错（默认 E），都可自定义 ----------
+  const HOTKEY_LS = 'cutTool.hotkeys.v1';
+  const HOT = { key: 'm', errKey: 'e', on: true };
+  let hkCapturing = null;            // null | 'key' | 'errKey'
+  function keyLabel(k){
+    if (!k) return '未设置';
+    if (k === ' ') return '空格';
+    if (k === 'arrowleft') return '←';
+    if (k === 'arrowright') return '→';
+    if (k === 'arrowup') return '↑';
+    if (k === 'arrowdown') return '↓';
+    return (k.length === 1) ? k.toUpperCase() : k;
+  }
+  function loadHotkeys(){
+    try {
+      const o = JSON.parse(localStorage.getItem(HOTKEY_LS) || '{}');
+      if (o && typeof o.key === 'string' && o.key) HOT.key = o.key;
+      if (o && typeof o.errKey === 'string' && o.errKey) HOT.errKey = o.errKey;
+      if (o && typeof o.on === 'boolean') HOT.on = o.on;
+    } catch (e) {}
+  }
+  function saveHotkeys(){ try { localStorage.setItem(HOTKEY_LS, JSON.stringify(HOT)); } catch (e) {} }
+  function applyHotkeyUI(){
+    $('hkBtn').textContent = keyLabel(HOT.key);
+    $('hkErrBtn').textContent = keyLabel(HOT.errKey);
+    $('hkBtn').classList.toggle('capturing', hkCapturing === 'key');
+    $('hkErrBtn').classList.toggle('capturing', hkCapturing === 'errKey');
+    $('hkOnWrap').classList.toggle('on', HOT.on);
+    $('hkInfo').textContent = HOT.on
+      ? `按 ${keyLabel(HOT.key)} 打点 · 按 ${keyLabel(HOT.errKey)} 把当前段标错 / 取消（输入框里打字不触发）`
+      : '快捷键已关闭（滚轮 / 下滑仍可用）';
+    const tip = document.querySelector('.gesture-tip');
+    if (tip) tip.textContent = '↓ 滚轮下滚 / 下滑打点'
+      + ((HOT.on && HOT.key) ? ` / 按 ${keyLabel(HOT.key)} 打点` : '')
+      + ((HOT.on && HOT.errKey) ? ` / 按 ${keyLabel(HOT.errKey)} 标错` : '');
+  }
+  $('hkOnWrap').onclick = () => {
+    HOT.on = !HOT.on; saveHotkeys(); applyHotkeyUI();
+    flash(HOT.on ? `快捷键已开启（打点 ${keyLabel(HOT.key)} / 标错 ${keyLabel(HOT.errKey)}）` : '快捷键已关闭');
+  };
+  $('hkBtn').onclick = () => { hkCapturing = 'key'; applyHotkeyUI(); flash('按下「打点」要用的键（Esc 取消）'); };
+  $('hkErrBtn').onclick = () => { hkCapturing = 'errKey'; applyHotkeyUI(); flash('按下「标错」要用的键（Esc 取消）'); };
+  $('hkResetBtn').onclick = () => {
+    HOT.key = 'm'; HOT.errKey = 'e'; HOT.on = true;
+    saveHotkeys(); applyHotkeyUI();
+    flash('快捷键已恢复默认：M 打点 / E 标错');
+  };
+
+  /** 把「当前播放位置所在的那一段」标为错误 / 取消 */
+  function toggleErrAtPlayhead(){
+    if (!S.duration) return flash('请先载入视频');
+    if (!S.segs.length) return flash('还没有分段，先打点');
+    const t = $('video').currentTime || 0;
+    const s = S.segs.find(x => t >= x.start && t < x.end) || S.segs[S.segs.length - 1];
+    toggleErr(s.seq);
+    const nowErr = S.errs.has(segKey(s.start));
+    flash(`第 ${s.seq} 段 → ${nowErr ? '❌ 错误' : '✅ 正常'}` + (nowErr ? '（其后编号重新从 1 开始）' : ''));
+  }
+
+  // 捕获阶段优先处理：① 正在设置键位 ② 快捷键（输入框里打字不触发）
+  window.addEventListener('keydown', e => {
+    if (hkCapturing){
+      e.preventDefault(); e.stopPropagation();
+      const which = hkCapturing;
+      hkCapturing = null;
+      if (e.key !== 'Escape'){
+        const k = String(e.key || '').toLowerCase();
+        if (which === 'key') HOT.key = k; else HOT.errKey = k;
+        HOT.on = true;
+        saveHotkeys(); applyHotkeyUI();
+        flash((which === 'key' ? '打点键' : '标错键') + '已设为 ' + keyLabel(k));
+      } else {
+        applyHotkeyUI();
+        flash('已取消设置快捷键');
+      }
+      return;
+    }
+    if (!HOT.on || !S.duration) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const k = String(e.key || '').toLowerCase();
+    if (HOT.key && k === HOT.key){ e.preventDefault(); addMarker(); return; }
+    if (HOT.errKey && k === HOT.errKey){ e.preventDefault(); toggleErrAtPlayhead(); }
+  }, true);
+  loadHotkeys();
+  applyHotkeyUI();
+
+  // ---------- 播放控制 ----------
+  $('playBtn').onclick = () => { const v = $('video'); v.paused ? v.play() : v.pause(); };
+  const vid = $('video');
+    vid.addEventListener('timeupdate', () => {
+      const d = S.duration || vid.duration || 1;
+      $('ph').style.left = ((vid.currentTime / d) * 100) + '%';
+      $('curt').textContent = tc(vid.currentTime) + ' / ' + tc(d);
+      applyPlaying(false, true);
+    });
+    vid.addEventListener('seeking', () => applyPlaying(true, true));
+  vid.addEventListener('loadedmetadata', () => {
+    if (!S.duration) S.duration = vid.duration || 0;
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+  });
+
+  $('addHereBtn').onclick = addMarker;
+  $('undoBtn').onclick = () => {
+    if (!S.cuts.length) return flash('没有切点可撤销');
+    S.cuts.pop(); S.selCut = -1;
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+    flash('已撤销上一个切点');
+  };
+  $('clearCutsBtn').onclick = () => {
+    if (!S.cuts.length) return;
+    if (!confirm('清空所有切点？将只剩一整段，并取消「结尾」设置。')) return;
+    S.cuts = []; S.errs.clear(); S.endCutTime = null; S.startCutTime = null; S.selCut = -1;
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+  };
+  $('clearErrBtn').onclick = () => {
+    if (!S.errs.size) return flash('没有错误标记');
+    S.errs.clear(); rebuild(); renderTL(); renderSegs();
+    flash('已清除全部错误标记');
+  };
+  // 全部反选：正常 ↔ 错误 对调（自反操作，再点一次即还原，所以不弹确认）
+  $('invertErrBtn').onclick = () => {
+    if (!S.segs.length) return flash('还没有分段，先打点');
+    const n = S.segs.length, wasErr = S.segs.filter(s => s.err).length;
+    S.errs = new Set(S.segs.filter(s => !s.err).map(s => segKey(s.start)));
+    rebuild(); renderTL(); renderSegs();
+    flash(`已全部反选：正常 ${wasErr} 段 ✅ / 错误 ${n - wasErr} 段 ❌（再点一次可换回）`);
+  };
+
+  // ---------- 步骤3：导出 ----------
+  function pollJob(id, cb){
+    let alive = true;
+    (async () => {
+      while (alive){
+        let j;
+        try { j = await API('/api/job', { id }); }
+        catch (e) { alive = false; return; }
+        const done = j.state === 'done' || j.state === 'error';
+        cb && cb(j, done);
+        if (done){ alive = false; return; }
+        await new Promise(r => setTimeout(r, 600));
+      }
+    })();
+  }
+
+  function writeCleanText(c, res){
+    const b = (res && res.burn && res.burn.enabled) ? res.burn : null;
+    if (b && b.writeClean === false) return `${c.burned || 0} 个烧录切片（未输出干净切片）`;
+    if (c.burned) return `${c.burned} 个烧录切片 + ${c.clips} 个干净切片`;
+    return `${c.clips || 0} 个干净切片（未烧录）`;
+  }
+
+  async function doExport(){
+    if (!S.src) return flash('请先载入视频');
+    if (!S.segs.length) return flash('还没有分段，请先打点');
+    const outDir = $('outDir').value.trim();
+    if (!outDir) return flash('请填写输出目录');
+    const n = S.segs.length, e = S.segs.filter(s => s.err).length;
+    const burnCfg = burnPayload();
+    const od = outDir.replace(/[\\/]+$/, '');
+    const lines = [];
+    const showTxt = (d, sh) => `${d}s 出现` + (sh > 0 ? `、显示 ${sh}s 后消失` : '、不消失');
+    if (burnCfg.enabled) {
+      lines.push(`烧录切片（✅/❌ + 编号${burnCfg.sfxEnabled ? ' + 对/错音效' : ''}；符号 ${showTxt(burnCfg.delay, burnCfg.badgeShow)}；编号 ${showTxt(burnCfg.numberDelay, burnCfg.numberShow)}）：${od}\\clips_burned\\`);
+      if (burnCfg.merge) lines.push(`合并成片：把切片按顺序拼成一条「童站挑战视频」→ ${od}\\`);
+      lines.push(burnCfg.writeClean ? `干净切片（可选）：${od}\\clips\\` : '干净切片：本次不输出');
+    } else {
+      lines.push(`⚠ 烧录已关闭 → 只输出干净切片：${od}\\clips\\`);
+    }
+    lines.push(`共 ${n} 段（正常 ${n - e} 段 ✅ / 错误 ${e} 段 ❌）· 位置 ${burnCfg.anchor} · 符号 ${burnCfg.badgeScale * 100}%宽`);
+    lines.push(S.startCutTime != null || S.endCutTime != null
+      ? `范围：${S.startCutTime != null ? tc(S.startCutTime) + '（起点）' : '00:00'} → `
+        + (S.endCutTime != null ? tc(S.endCutTime) + '（结尾）' : tc(S.duration) + '（视频末尾）')
+        + (S.startCutTime != null ? '；编号从起点那段重新从 1 开始' : '')
+      : `范围：00:00 → ${tc(S.duration)}（整段视频）`);
+    const ok = confirm('【导出切片】\n' + lines.join('\n')
+      + '\n\n⚠ 会清空对应输出目录里旧的切片文件。\n确认继续？');
+    if (!ok) return;
+    $('renderBtn').disabled = true;
+    $('p3bar').style.width = '10%';
+    $('p3msg').textContent = '正在切片…';
+    setStep(2);
+    const r = await API('/api/export', {
+      path: S.src,
+      cuts: S.cuts.slice(),
+      errors: S.segs.filter(s => s.err).map(s => s.seq),
+      end: S.endCutTime,                     // 结尾打点：之后不切片、不烧录
+      start: S.startCutTime,                 // 起点：之前不切片、不烧录；编号从起点那段重新从 1 开始
+      merge: burnCfg.merge,                  // 导出后合并成一条成片
+      outDir,
+      mode: $('mode').value, prefix: $('prefix').value.trim() || 'clip_',
+      burn: burnCfg,
+    });
+    if (r.error){ $('renderBtn').disabled = false;
+      $('p3msg').textContent = '失败: ' + r.error; return; }
+    pollJob(r.jobId, (j, done) => {
+      if (j.total) $('p3bar').style.width = Math.min(100, j.progress / j.total * 100) + '%';
+      $('p3msg').textContent = j.message || '处理中…';
+      if (!done) return;
+      $('renderBtn').disabled = false;
+      if (j.state === 'error'){
+        const e1 = String(j.error || '').split('\n')[0];
+        let hint = '';
+        if (/EPERM|EBUSY|EACCES/.test(e1)) hint = '（输出文件被其他程序占用：请关闭播放器 / 剪映 / 微信后重试）';
+        $('p3msg').textContent = '导出失败: ' + e1 + hint;
+        return;
+      }
+      $('p3bar').style.width = '100%';
+      const res = j.result || {};
+      const c = res.counts || {};
+      $('p3msg').textContent = `完成：${writeCleanText(c, res)}（正常 ${(c.segs || 0) - (c.errors || 0)} 段 ✅ / 错误 ${c.errors || 0} 段 ❌）`;
+      if (res.mergedFile) {
+        $('p3msg').textContent += ` · 成片：${res.mergedFile.split('/').pop()}（${(res.mergeDuration || 0).toFixed(1)}s）`;
+      }
+      if (res.burnWarning) $('p3msg').textContent += ' ⚠ ' + res.burnWarning;
+      if (res.mergeWarning) $('p3msg').textContent += ' ⚠ ' + res.mergeWarning;
+      flash(res.mergedFile ? '切片与成片都已生成' : '切片已导出');
+    });
+  }
+  $('renderBtn').onclick = () => doExport();
+
+  $('mergeBtn').onclick = async () => {
+    const outDir = $('outDir').value.trim();
+    if (!outDir) return flash('请填写输出目录');
+    const ok = confirm('【合并成片】\n把输出目录里已有的切片按顺序拼成一条「童站挑战视频」：\n'
+      + `${outDir.replace(/[\\/]+$/, '')}\\clips_burned\\（没有则用 clips\\）\n`
+      + '不会重新导出切片，几秒到几十秒就好。\n\n继续？');
+    if (!ok) return;
+    $('mergeBtn').disabled = true;
+    $('p3bar').style.width = '10%';
+    $('p3msg').textContent = '正在合并成片…';
+    setStep(2);
+    const r = await API('/api/merge', { outDir, path: S.src });
+    if (r.error) { $('mergeBtn').disabled = false; $('p3msg').textContent = '失败: ' + r.error; return; }
+    pollJob(r.jobId, (j, done) => {
+      $('p3msg').textContent = j.message || '合并中…';
+      if (!done) return;
+      $('mergeBtn').disabled = false;
+      if (j.state === 'error') {
+        $('p3msg').textContent = '合并失败: ' + String(j.error || '').split('\n')[0];
+        return;
+      }
+      $('p3bar').style.width = '100%';
+      const res = j.result || {};
+      $('p3msg').textContent = `成片已生成：${res.name}（${res.clips} 段 · ${(res.duration || 0).toFixed(1)}s · ${((res.size || 0) / 1048576).toFixed(1)}MB）→ ${outDir}`;
+      flash('成片已生成：' + res.name);
+    });
+  };
+
+  $('openDirBtn').onclick = async () => {
+    const dir = $('outDir').value.trim();
+    const r = await API('/api/open-folder', { dir });
+    flash(r.ok ? '已打开输出目录' : '打开失败');
+  };
+
+  // ---------- 初始化 ----------
+  rebuild(); renderTL(); renderMarks(); renderSegs();
+  (async () => {
+    let env = null;
+    try { env = await fetch('/api/env').then(x => x.json()).catch(() => null); } catch (e) {}
+    if (env){
+      if (env.defaultOutDir) $('outDir').value = env.defaultOutDir;
+      if (env.sfxOk) BN.sfxOkPath = env.sfxOk;
+      if (env.sfxNo) BN.sfxNoPath = env.sfxNo;
+      if (env.pillow === false) $('bnHint').textContent = '⚠ 未检测到 Pillow，烧录不可用（将只输出干净切片）';
+      else if (env.sfxOkExists === false || env.sfxNoExists === false) $('bnHint').textContent = '⚠ 音效文件缺失，请检查路径';
+      else $('bnHint').textContent = `音效默认：assets\\对.mp3 / 错.mp3`;
+    }
+    loadBurnLS();          // 本地保存的界面配置优先
+    buildGrid();
+    applyBurnUI();
+    updateSegStat();
+  })();
+
+  // 支持 ?src=<绝对路径> 直接载入源文件
+  (async () => {
+    const q = new URLSearchParams(location.search);
+    const s = q.get('src');
+    if (s){ S.src = s; await loadSource(); }
+  })();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', __boot);
+  else __boot();
+})();
+</script>
+</body>
+</html>
