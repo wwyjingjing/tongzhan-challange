@@ -1,0 +1,12 @@
+node_modules/
+*.log
+_launcher.log
+ffmpeg/
+runtime/
+*.zip
+clips/
+clips_burned/
+output/
+manifest.json
+.DS_Store
+Thumbs.db
