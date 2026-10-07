@@ -11,6 +11,7 @@ const net = require('net');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const TOOLS = require('./findtools');
 
 const ROOT = __dirname;
 const LOG = path.join(ROOT, '_launcher.log');
@@ -20,6 +21,23 @@ function log(...a) {
   const line = `[${new Date().toLocaleString()}] ${a.join(' ')}`;
   console.log(line);
   try { fs.appendFileSync(LOG, line + '\n'); } catch (e) {}
+}
+
+/** 运行环境自检（换电脑时能一眼看出缺什么；缺了只影响导出，界面照常能用） */
+function selfCheck() {
+  console.log('正在自检运行环境…');
+  const ff = TOOLS.resolveFfmpeg(ROOT);
+  console.log('  ffmpeg : ' + (ff.ok ? '✔ ' + ff.source : '✘ 没找到（导出会失败）'));
+  console.log('  标记渲染 : ✔ 浏览器内完成（不需要 Python / Pillow）');
+  if (!ff.ok) {
+    console.log('');
+    console.log('  ── 只差 ffmpeg：打点/审核/存档都能用，导出时需要它 ──');
+    console.log('  最省事：双击「安装依赖.cmd」自动下载安装（约 80MB，装一次就行）');
+    console.log('  手动装：https://www.gyan.dev/ffmpeg/builds/  → 解压后把 bin 目录加入 PATH');
+    console.log('  （或者把 ffmpeg.exe 放到 ' + path.join(ROOT, 'ffmpeg', 'bin') + ' 里）');
+    console.log('');
+  }
+  return { ff };
 }
 
 /** 这个端口上是不是「我们的」服务？ */
@@ -53,11 +71,15 @@ function openBrowser(url) {
 }
 
 async function main() {
+  try { process.title = '童站挑战剪辑器'; } catch (e) {}
   fs.writeFileSync(LOG, `---- 启动 ${new Date().toLocaleString()} ----\n`);
   console.log('============================================');
   console.log('  童站挑战剪辑器 · 本地服务');
   console.log('============================================\n');
   log('node', process.version, '·', process.execPath);
+  log('工作目录', ROOT);
+
+  selfCheck();
 
   // ① 已经有服务在跑（比如上次没关窗口）→ 直接开页面
   if (await probe(8777)) {

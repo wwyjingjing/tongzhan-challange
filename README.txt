@@ -1,36 +1,71 @@
 童站挑战剪辑器 · 使用前须知
 ================================
 
+【先看这个：你拿到的是哪个包】
+· 童站挑战剪辑器_完整版_*.zip   ── 内置了 Node 和 ffmpeg，**解压后双击「启动.cmd」直接用**，什么都不用装。
+                                  （适合发给不折腾的同事/朋友）
+· 童站挑战剪辑器_轻量版_*.zip   ── 只有工具本体（约 100KB）。需要本机有 Node.js（必须）和 ffmpeg（导出时用）。
+                                  ffmpeg 会自动找；找不到就双击「安装依赖.cmd」自动装。
+两个包功能完全一样，只是体积差别。
+
 【怎么启动】
 双击「启动.cmd」（纯英文名兜底：start.cmd）。
 它会自动挑一个空闲端口（8777 起）、启动服务、等就绪后打开浏览器。
 关闭那个黑窗口 = 停止服务。
-启动细节写在 cut-tool\_launcher.log，起不来时先看它。
+启动细节写在 _launcher.log，起不来时先看它。
 
-【依赖】（本机都已装好）
-1) ffmpeg / ffprobe 要在 PATH 里：本机为 F:\ffmpeg-4.4.1-full_build\bin
-2) 烧录 ✅/❌ 需要 Python + Pillow，默认用：
-   C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe
-   （换电脑/换 Python 时设环境变量 CUT_PY 指向别的 python.exe）
-3) Node.js 18+（启动器优先用 PATH 里的 node，找不到就用内置兜底路径）
-   页面右上角自检会显示「ffmpeg ✔ / PIL ✔」。
+启动时会先做一次环境自检，打印 ffmpeg 的状态和实际用的路径。
+
+※ 所有 .cmd 里都没有中文（全是英文注释）——
+  这是故意的：批处理文件含中文时，在代码页不是 UTF-8 的电脑上会被解析乱掉，
+  表现为满屏「'xxx' 不是内部或外部命令」。中文提示一律由 Node 打印。
+
+【第一次启动会自动准备 Node（轻量版也一样）】
+轻量版不需要你手动装 Node.js：双击「启动.cmd」时，如果本机没有 Node，
+工具会用 Windows 自带的 curl + tar **自动下载便携版 Node（约 30 MB，免安装、不要管理员）**
+放进自己的 runtime
+ode\ 目录，然后继续启动——整个过程只需这一次联网。
+（国内会优先走 npmmirror 镜像；都失败时会打印手动下载指引。）
+完整版已经内置了 Node，连这一步都不需要。
+
+【依赖：现在只需要一个 ffmpeg】
+1) Node.js 18+    完整版已内置（runtime\node\node.exe）；轻量版需要本机装：
+                  启动器依次找：runtime\node → PATH → C:\Program Files\nodejs → 用户目录 → 内置兜底路径。
+                  都没有会打印英文提示，告诉你去 https://nodejs.org 装。
+2) ffmpeg         **导出成片必须**（打点、审核、存档、导入打点都不需要它）。
+                  自动探测顺序：环境变量 CUT_FFMPEG → PATH → 工具目录 ffmpeg\bin → C:\ffmpeg\bin
+                                 → 常见安装位置 → **扫描本机**（很多人电脑里其实有，比如录屏软件自带的）
+                  没有就双击「安装依赖.cmd」：自动下载官方压缩包（约 80MB，只下一次）→
+                  解压到 工具目录\ffmpeg\bin\（不改 PATH、不需要管理员）→ 自动复检。
+                  国内下载慢的话：自己下好 zip，改名 ffmpeg.zip 放进工具目录，再双击那个脚本（离线安装）。
+3) Python + Pillow  **不再需要**。✅/❌ + 编号 现在由页面用 canvas 渲染后再交给 ffmpeg 叠加，
+                   所以换电脑只要搞定 ffmpeg 一个东西。（overlay_gen.py / ocr_worker.py 是历史脚本，可删。）
+
+   缺 ffmpeg 也能打开页面：打点、审核、存档、导出打点文件、导入打点全都正常，
+   页面顶部会有红色横幅告诉你怎么装。
 
 【默认路径】（都可用环境变量覆盖）
-- 默认输出目录        F:\workbuddy\2026-10-02-12-47-05\output\manual   → set CUT_OUT_DIR=...
-- 音效文件            assets\对.mp3 / assets\错.mp3                    → set CUT_SFX_OK=... / CUT_SFX_NO=...
+- 默认输出目录        桌面\童站挑战输出（如果本机存在开发机路径则用它）→ set CUT_OUT_DIR=...
+- 音效文件            assets\对.mp3 / assets\错.mp3                    → set CUT_SFX_OK=... / set CUT_SFX_NO=...
 - 端口                set CUT_PORT=8888
 - 导出并发数          set CUT_CONC=3
+- ffmpeg              set CUT_FFMPEG=D:\ffmpeg\bin\ffmpeg.exe
+- 找 ffmpeg 的开关     set TOOL_NO_SCAN=1（不扫描）/ set TOOL_SCAN_MS=15000（扫描预算毫秒）
 
 【文件说明】
-启动.cmd / start.cmd   双击启动
-launcher.js            启动助手（挑端口 / 起服务 / 就绪后开浏览器，不依赖 PowerShell）
-server.js              本地服务（零依赖，仅用 Node 内置模块）
-overlay_gen.py         生成 ✅/❌ + 编号标记图（Pillow）
-ocr_worker.py          早期 OCR 判定用的脚本（现在流程用不到，留着备用）
-pick_file.ps1          调用 Windows 原生文件对话框
-public\index.html      前端页面（打点 / 审核 / 导出全在这里）
-assets\                对.mp3 / 错.mp3（可以整体替换成你自己的音效）
-使用说明.md            ★ 完整说明，建议先读这个
+启动.cmd / start.cmd        双击启动（内容一样，互为兜底；纯 ASCII）
+安装依赖.cmd / setup-deps.cmd 双击装 ffmpeg（纯 ASCII）
+launcher.js                 启动助手（挑端口 / 起服务 / 环境自检 / 就绪后开浏览器）
+setup-deps.js               依赖安装（下载 + 解压 + 复检，纯 Node，不需要 PowerShell）
+findtools.js                依赖探测（PATH / 工具目录 / 常见位置 / 扫描本机 + 缓存）
+server.js                   本地服务（零依赖，只用 Node 内置模块）
+public\index.html           前端页面（打点 / 审核 / 标记渲染 / 导出）
+assets\                     对.mp3 / 错.mp3（可整体替换成你自己的音效）
+runtime\node\node.exe       完整版内置的 Node（轻量版没有这个目录）
+ffmpeg\bin\ffmpeg.exe       安装依赖.cmd 装到这里（完整版已内置）
+overlay_gen.py / ocr_worker.py  历史脚本（现在用不到，可删）
+pick_file.ps1               调 Windows 原生文件对话框（可选功能用）
+使用说明.md                 ★ 完整说明，建议先读这个
 
 【导出的东西在哪】
 <输出目录>\clips_burned\     烧录好的切片（✅/❌ + 编号 + 对/错音效）
@@ -38,12 +73,20 @@ assets\                对.mp3 / 错.mp3（可以整体替换成你自己的音�
 <输出目录>\童站挑战_xxx.mp4   合并好的成片
 <输出目录>\manifest.json     本次导出的清单
 
-【这一版有什么】（截至 2026-10-05）
+【这一版有什么】（2026-10-07）
+- **不需要 Python 了**：✅/❌ + 编号 改由页面 canvas 渲染（预览和成片完全一致）
+- **换电脑更省事**：ffmpeg 自动探测 + 扫描本机 + 一键安装（安装依赖.cmd）+ 完整版内置 Node/ffmpeg
+- 启动器/env 自检/页面横幅统一提示（缺什么、怎么装，一眼能看见）
+- 启动器不再依赖中文：任何代码页的电脑都能双击启动
+- 默认输出目录换成「桌面\童站挑战输出」，不再指向开发机的固定路径
 - 手动滚轮/下滑/快捷键打点（默认 M 打点、E 标错，键位可改）
 - 审核栏贴在视频右侧：逐段标 ✅/❌、跳到 / 截断 / ✂ 删点、「⇅ 全部反选」
+- 打点后期调整：选中切点后按帧挪（±1/±5/±10 帧、自定义 N 帧、拉条实时拖，**视频右边另有一条小号微调条**）
+  + 吸附（整帧 / 关键帧 / 不吸附），快捷键 , . （Shift 一次 5 帧）
+- 打点文件带「起点/结尾」，支持一键装 ffmpeg、自动扫描本机已有的 ffmpeg（含缓存）
 - 起点 / 结尾：只导出中间那段，编号从起点重新从 1 开始
 - 打点自动存档（刷新/崩溃不丢）+ 导出/导入打点文件
-- 烧录 ✅/❌ + 编号（出现/消失时间可分别设置）+ 对/错音效（原声保持）
+- 烧录 ✅/❌ + 编号（符号与编号的出现/消失时间可分别设置）+ 对/错音效（原声保持）
 - 导出后自动合并成一条成片，也可单独「🎬 合并成片」
 
-打包时间：2026-10-05
+打包时间：2026-10-07

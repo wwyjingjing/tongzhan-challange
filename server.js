@@ -12,10 +12,13 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 // ---------- 环境常量 ----------
-const FFMPEG = 'ffmpeg';
-const FFPROBE = 'ffprobe';
+// ffmpeg / python 自动探测（换电脑也能跑）：PATH → 工具目录 tools\ → 常见安装位置 → 开发机兜底
+const TOOLS = require('./findtools');
+const FFINFO = TOOLS.resolveFfmpeg(__dirname);
+const PYINFO = TOOLS.resolvePython(__dirname);
+const FFMPEG = FFINFO.path;
 const NODE = process.execPath;
-const PY = process.env.CUT_PY || 'C:\\Users\\Administrator\\.workbuddy\\binaries\\python\\envs\\default\\Scripts\\python.exe';
+const PY = PYINFO.path;
 const OCR_WORKER = path.join(__dirname, 'ocr_worker.py');
 const OVERLAY_PY = process.env.CUT_OVERLAY_PY || path.join(__dirname, 'overlay_gen.py'); // ✅/❌+编号 合成
 const PICK_PS1 = path.join(__dirname, 'pick_file.ps1');   // 原生文件对话框
@@ -28,9 +31,11 @@ const ASSETS = path.join(ROOT, 'assets');    // 对.mp3 / 错.mp3 等内置素�
 const BADGES = path.join(WORK, 'badges');    // 每次导出生成的标记图
 const BURN_TMP = path.join(WORK, 'burn_tmp');// 烧录时的临时混音文件
 
-// 手动打点模式的默认输出（用户指定：切片不覆盖旧产物，单独子目录；ASS 覆盖指定文件）
-const DEFAULT_OUT_DIR = process.env.CUT_OUT_DIR || 'F:\\workbuddy\\2026-10-02-12-47-05\\output\\manual';
-const DEFAULT_ASS_PATH = process.env.CUT_ASS_PATH || 'F:\\workbuddy\\2026-10-02-12-47-05\\output\\无标题.ass';
+// 手动打点模式的默认输出（找不到开发机路径时退回「桌面\童站挑战输出」，换电脑不会指向不存在的目录）
+const DEV_OUT_DIR = 'F:\\workbuddy\\2026-10-02-12-47-05\\output\\manual';
+const DEFAULT_OUT_DIR = process.env.CUT_OUT_DIR
+  || (fs.existsSync(DEV_OUT_DIR) ? DEV_OUT_DIR : path.join(require('os').homedir(), 'Desktop', '童站挑战输出'));
+const DEFAULT_ASS_PATH = process.env.CUT_ASS_PATH || path.join(DEFAULT_OUT_DIR, '无标题.ass');
 
 // 烧录标记（✅/❌ + 编号 + 音效）默认值
 const DEFAULT_SFX_OK = process.env.CUT_SFX_OK || path.join(ASSETS, '对.mp3');
@@ -150,22 +155,40 @@ function jobLog(id, msg) {
 }
 
 // ---------- 1. 探针 ----------
+/**
+ * 媒体信息：只用 ffmpeg 自己探（不依赖 ffprobe —— 少让用户准备一个 100MB 的二进制）。
+ * 解析 `ffmpeg -hide_banner -i <file>` 的 stderr（这条路对 mp4/mkv/flv/音频都够用）。
+ */
 async function probe(src) {
-  const r = await run(FFPROBE, ['-v', 'error', '-print_format', 'json',
-    '-show_format', '-show_streams', src]);
-  if (r.code !== 0) throw new Error('ffprobe 失败: ' + r.err.slice(0, 400));
-  const info = JSON.parse(r.out);
-  const v = (info.streams || []).find(s => s.codec_type === 'video') || {};
-  const a = (info.streams || []).find(s => s.codec_type === 'audio') || {};
+  const r = await run(FFMPEG, ['-hide_banner', '-i', src]);
+  const txt = (r.err || '') + '\n' + (r.out || '');
+  if (!/Duration:|Stream #/i.test(txt)) {
+    throw new Error('ffmpeg 读不到这个文件（可能不是媒体文件，或编码损坏）：' + String(src).split(/[\\/]/).pop());
+  }
+  const dur = /Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/.exec(txt);
+  const duration = dur ? (+dur[1]) * 3600 + (+dur[2]) * 60 + parseFloat(dur[3]) : 0;
+  const br = /bitrate:\s*(\d+)\s*kb\/s/.exec(txt);
+  const vm = /Stream #0:\d+[^\n]*Video:\s*([A-Za-z0-9_]+)[^\n]*?(\d{2,5})x(\d{2,5})/.exec(txt);
+  const fm = /([\d.]+)\s*fps/.exec(txt) || /([\d.]+)\s*tbr/.exec(txt);
+  const am = /Stream #0:\d+[^\n]*Audio:\s*([A-Za-z0-9_]+)([^\n]*)/.exec(txt);
+  const aLine = am ? am[2] : '';
+  const sr = /(\d{4,6})\s*Hz/.exec(aLine);
+  const chM = /(mono|stereo)/.exec(aLine) || /(\d+)\s*channels?/.exec(aLine);
+  let channels = 0;
+  if (chM) channels = /mono/i.test(chM[1]) ? 1 : (/stereo/i.test(chM[1]) ? 2 : parseInt(chM[1], 10) || 0);
+  let size = 0;
+  try { size = fs.statSync(src).size; } catch (e) {}
   return {
-    duration: parseFloat(info.format && info.format.duration || 0),
-    size: parseInt(info.format && info.format.size || 0, 10),
-    bitrate: parseInt(info.format && info.format.bit_rate || 0, 10),
-    vcodec: v.codec_name || null,
-    width: v.width || 0, height: v.height || 0,
-    acodec: a.codec_name || null,
-    sampleRate: a.sample_rate || null,
-    channels: a.channels || 0,
+    duration,
+    size,
+    bitrate: br ? parseInt(br[1], 10) * 1000 : 0,
+    vcodec: vm ? vm[1] : null,
+    width: vm ? parseInt(vm[2], 10) : 0,
+    height: vm ? parseInt(vm[3], 10) : 0,
+    fps: fm ? parseFloat(fm[1]) : 0,
+    acodec: am ? am[1] : null,
+    sampleRate: sr ? sr[1] : null,
+    channels,
   };
 }
 
@@ -549,8 +572,38 @@ function normBurn(raw) {
 }
 
 /**
+ * 读取「页面渲染好的标记图」（由前端 canvas 生成，POST /api/overlay-upload 落盘）。
+ * 目录结构：work/badges/<runTag>/items.json + ly_<id>_<kind>.png
+ * 返回与 genOverlays 相同的结构 {map, style}；缺文件返回 {error}
+ */
+function loadOverlayRun(runTag) {
+  const tag = String(runTag || '').replace(/[^\w.-]/g, '');
+  if (!tag) return { error: '标记图批次号无效' };
+  const dir = path.join(BADGES, tag);
+  const specFile = path.join(dir, 'items.json');
+  if (!fs.existsSync(specFile)) return { error: `没找到页面渲染的标记图（${tag}），请在页面里重新导出` };
+  let spec = null;
+  try { spec = JSON.parse(fs.readFileSync(specFile, 'utf8')); } catch (e) { return { error: '标记图清单读取失败：' + e.message }; }
+  const map = new Map();
+  let missing = 0;
+  for (const it of spec.items || []) {
+    const layers = [];
+    for (const L of it.layers || []) {
+      const f = path.join(dir, L.file || '');
+      if (!fs.existsSync(f)) { missing++; continue; }
+      layers.push({ kind: L.kind, png: f, x: +L.x || 0, y: +L.y || 0, w: +L.w || 0, h: +L.h || 0 });
+    }
+    if (layers.length) map.set(String(it.id), { id: String(it.id), x: +it.x || 0, y: +it.y || 0, w: +it.w || 0, h: +it.h || 0, layers });
+  }
+  if (!map.size) return { error: '页面标记图为空，请重新导出' + (missing ? `（缺 ${missing} 个图层文件）` : '') };
+  return { map, style: spec.badgeStyle || 'browser', log: [`页面渲染标记图（${map.size} 段）`] };
+}
+
+/**
  * 调 overlay_gen.py 生成每段的「符号 + 编号」标记图。
  * 返回 {map:Map(seq→{png,x,y,w,h}), style, log, items} 或 {error}。
+ * ※ 现在只是「备用路径」：正常流程由页面用 canvas 渲染（不依赖 Python），
+ *   只有在缺页面渲染结果（比如直接调 API 导出）且本机装了 Python+Pillow 时才会走到这里。
  */
 async function genOverlays(segs, burn, info, jobId, opts = {}) {
   const inP = path.join(BADGES, `spec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.json`);
@@ -792,6 +845,17 @@ const server = http.createServer(async (req, res) => {
       return res.end(b);
     }
 
+    // --- 字体文件（页面 canvas 渲染编号时用：把本机 ttf/ttc 借给浏览器加载）---
+    if (req.method === 'GET' && p === '/font') {
+      const f = u.searchParams.get('path') || '';
+      if (!f || !/\.(ttf|ttc|otf|woff2?)$/i.test(f) || !fs.existsSync(f)) { res.writeHead(404); return res.end('not found'); }
+      const ext = (f.match(/\.(ttf|ttc|otf|woff2?)$/i) || ['.ttf'])[0].toLowerCase();
+      const type = ext === '.otf' ? 'font/otf' : (ext === '.woff' ? 'font/woff' : (ext === '.woff2' ? 'font/woff2' : 'font/ttf'));
+      const b = fs.readFileSync(f);
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': b.length, 'Cache-Control': 'max-age=86400' });
+      return res.end(b);
+    }
+
     // --- 媒体流（支持 Range，供 <video> 拖动预览）---
     if (req.method === 'GET' && p === '/media') {
       const src = u.searchParams.get('path');
@@ -1008,6 +1072,68 @@ const server = http.createServer(async (req, res) => {
     }
 
     // --- 烧录标记预览：合成 ✅/❌+编号 图，返回图片 base64 与贴图坐标 ---
+    // --- 关键帧列表（打点微调「吸附到关键帧」用；只扫切点附近一小段，很快）---
+    if (p === '/api/keyframes') {
+      const ksrc = body.path;
+      if (!ksrc || !fs.existsSync(ksrc)) return json(res, 400, { error: '文件不存在' });
+      const kt = Math.max(0, +body.t || 0);
+      const win = Math.max(1, Math.min(60, +body.window || 8));
+      const from = Math.max(0, kt - win);
+      const dur = win * 2 + 1;
+      const r = await run(FFMPEG, ['-hide_banner', '-nostats', '-loglevel', 'info',
+        '-ss', from.toFixed(3), '-skip_frame', 'nokey', '-i', ksrc, '-t', dur.toFixed(3),
+        '-an', '-sn', '-vf', 'showinfo', '-f', 'null', '-']);
+      const txt = (r.err || '') + (r.out || '');
+      const keys = [];
+      const re = /pts_time:\s*([\d.]+)/g;
+      let m;
+      while ((m = re.exec(txt))) {
+        const v = from + parseFloat(m[1]);
+        if (isFinite(v)) keys.push(+v.toFixed(3));
+      }
+      keys.sort((a, b) => a - b);
+      const uniq = keys.filter((v, i) => !i || Math.abs(v - keys[i - 1]) > 1e-4);
+      return json(res, 200, { ok: true, from: +from.toFixed(3), to: +(from + dur).toFixed(3), keys: uniq });
+    }
+
+    // --- 页面上传「自己渲染好的标记图」（canvas 生成，不需要 Python）---
+    if (p === '/api/overlay-upload') {
+      const tag = String(body.runTag || '').replace(/[^\w.-]/g, '');
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (!tag) return json(res, 400, { error: '缺少 runTag' });
+      if (!items.length) return json(res, 400, { error: 'items 为空' });
+      const dir = path.join(BADGES, tag);
+      try { fs.mkdirSync(dir, { recursive: true }); }
+      catch (e) { return json(res, 500, { error: `标记图目录创建失败（${e.code || e.message}）：${dir}` }); }
+      // 清掉同批次旧文件，避免上一版的残留图层被复用
+      try { for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f)); } catch (e) {}
+      const out = { badgeStyle: body.badgeStyle || 'browser', items: [] };
+      let wrote = 0, bytes = 0;
+      try {
+        for (const it of items) {
+          const id = String(it.id == null ? '' : it.id).replace(/[^\w.-]/g, '');
+          if (!id) continue;
+          const rec = { id, x: Math.round(+it.x || 0), y: Math.round(+it.y || 0), w: Math.round(+it.w || 0), h: Math.round(+it.h || 0), layers: [] };
+          for (const L of it.layers || []) {
+            const kind = (L.kind === 'number') ? 'number' : 'badge';
+            const b64 = String(L.png || L.b64 || '').replace(/^data:image\/png;base64,/, '');
+            if (!b64) continue;
+            const buf = Buffer.from(b64, 'base64');
+            const file = `ly_${id}_${kind}.png`;
+            fs.writeFileSync(path.join(dir, file), buf);
+            rec.layers.push({ kind, file, x: Math.round(+L.x || 0), y: Math.round(+L.y || 0), w: Math.round(+L.w || 0), h: Math.round(+L.h || 0) });
+            wrote++; bytes += buf.length;
+          }
+          if (rec.layers.length) out.items.push(rec);
+        }
+        fs.writeFileSync(path.join(dir, 'items.json'), JSON.stringify(out, null, 1), 'utf8');
+      } catch (e) {
+        return json(res, 500, { error: '标记图写入失败：' + (e.message || e) });
+      }
+      return json(res, 200, { ok: true, runTag: tag, dir, items: out.items.length, layers: wrote, kb: Math.round(bytes / 1024) });
+    }
+
+    // --- 标记图预览（备用：正常预览由页面自己渲染，不依赖 Python）---
     if (p === '/api/badge-preview') {
       const burn = normBurn(body.cfg);
       const w = Math.max(16, +body.w || 1080), h = Math.max(16, +body.h || 1920);
@@ -1109,8 +1235,10 @@ const server = http.createServer(async (req, res) => {
               if (sfxNo) { try { sfxChNo = (await probe(sfxNo)).channels || 2; } catch (e) {} }
             } else { sfxOk = sfxNo = null; }
 
-            jobLog(id, '生成 ✅/❌ + 编号标记图…');
-            const ov = await genOverlays(segs, burn, info, id, { subdir: runTag });
+            jobLog(id, '取页面渲染好的 ✅/❌ + 编号标记图…');
+            const ov = body.overlayRun
+              ? loadOverlayRun(body.overlayRun)
+              : await genOverlays(segs, burn, info, id, { subdir: runTag });   // 备用：直接调 API 时用 Python 渲染
             if (ov.error) {
               burnWarning = ov.error + '（本次只输出干净切片）';
               jobLog(id, burnWarning);
@@ -1466,7 +1594,12 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   log('童站挑战剪辑器 · 服务已启动: http://127.0.0.1:' + PORT);
-  log('ffmpeg:', FFMPEG, '| python:', PY);
+  // 自检：换电脑使用时，缺什么一眼能看见（缺 ffmpeg 只影响导出，界面还能正常打开）
+  log('自检 ffmpeg :', FFINFO.ok ? '✔ ' + FFINFO.ver : '✘ 没找到 —— 导出会失败；双击「安装依赖.cmd」可自动装');
+  log('自检 标记渲染:', '✔ 浏览器内 canvas 渲染（不需要 Python / Pillow）'
+    + (PYINFO.ok && PYINFO.pillow ? '；本机另有 Python，可直接调 API 导出时作备用' : ''));
+  log('     ffmpeg =', FFMPEG, '(' + FFINFO.source + ')');
+  log('     输出目录默认 =', DEFAULT_OUT_DIR);
 });
 server.on('error', e => {
   if (e.code === 'EADDRINUSE') log('端口被占用，请设置 CUT_PORT 环境变量换端口');

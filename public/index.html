@@ -42,6 +42,27 @@
   button.mini{padding:5px 9px;font-size:11.5px;border-radius:7px;gap:4px;font-weight:500}
   button.big{padding:11px 20px;font-size:14px;border-radius:11px}
   .btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  /* 切点微调（视频右边的小号条） */
+  .finemini{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:8px 9px;
+    background:linear-gradient(180deg,#1b1f27,#171b22)}
+  .finemini .fmTitle{font-size:11.5px;font-weight:700;color:#cfd6e6}
+  .finemini .fmInfo{font-size:11.5px;color:var(--muted)}
+  .finemini .fmVal{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .finemini .fmSnap{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+  .finemini .fmSnap select{padding:2px 4px;font-size:11px;border-radius:6px}
+  .finemini input[type=range]{flex:1;min-width:80px;height:16px;accent-color:var(--ok,#37d39b)}
+  .finemini.off{opacity:.45}
+  .btn.xs{padding:3px 7px;font-size:11.5px;border-radius:6px}
+  /* 打点微调面板 */
+  .fine{margin-top:10px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;
+    background:linear-gradient(180deg,#1b1f27,#171b22)}
+  .fine .nudgein{display:inline-flex;align-items:center;gap:4px;background:#0f1319;border:1px solid var(--line);
+    border-radius:8px;padding:3px 8px}
+  .fine .nudgein input{width:62px;background:transparent;border:0;color:var(--fg);font-size:13px;text-align:center}
+  .fine .nudgein em{font-style:normal;font-size:11.5px;color:var(--muted)}
+  .fine label.lbl{font-size:11.5px;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .fine input[type=range]{accent-color:var(--ok,#37d39b)}
+  .fine.off{opacity:.5}
   .grouplabel{font-size:10.5px;color:var(--muted);letter-spacing:1px;background:#ffffff0a;
     border:1px solid var(--line);border-radius:6px;padding:3px 8px;flex:none}
   .toolbox{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-top:10px;background:#ffffff05}
@@ -202,6 +223,9 @@
   <h1>童站挑战剪辑器</h1>
   <div class="sub">滚轮下滚 / 下滑打点 → 审核标错（出错后重新从 1 编号）→ 导出带 ✅/❌ + 编号 + 对/错音效的切片</div>
 
+  <div id="envWarn" style="display:none;margin:10px 0 0;padding:11px 13px;border-radius:10px;
+    background:#3a1a1a;border:1px solid #7a2f2f;color:#ffdede;font-size:12.5px;line-height:1.85"></div>
+
   <div class="steps" id="steps">
     <div class="step" data-s="1"><span class="dot"></span>1 载入 · 打点 · 审核</div>
     <div class="step" data-s="2"><span class="dot"></span>2 导出成片</div>
@@ -261,6 +285,35 @@
       <div>
         <div class="kv" id="markInfo"></div>
 
+        <!-- 切点微调（小号，放在视频右边，边看边挪） -->
+        <div class="finemini" id="fmBox">
+          <div class="row" style="align-items:center;gap:6px">
+            <span class="fmTitle">切点微调</span>
+            <span class="fmInfo" id="fmInfo">未选中切点</span>
+            <span class="grow"></span>
+            <button class="btn xs" id="fmPrev" title="选中上一个切点（微调快捷键 , . 是挪一帧）">◀</button>
+            <button class="btn xs" id="fmNext" title="选中下一个切点">▶</button>
+          </div>
+          <div class="row" style="align-items:center;gap:6px;margin-top:6px">
+            <button class="btn xs" data-fm="-5" title="退 5 帧">−5</button>
+            <button class="btn xs" data-fm="-1" title="退 1 帧">−1</button>
+            <input type="range" id="fmRange" min="-30" max="30" value="0" step="1" title="拖动微调，松手生效（双击归零）">
+            <button class="btn xs" data-fm="1" title="进 1 帧">+1</button>
+            <button class="btn xs" data-fm="5" title="进 5 帧">+5</button>
+          </div>
+          <div class="row" style="align-items:center;gap:6px;margin-top:3px">
+            <span class="fmVal" id="fmVal">0 帧</span>
+            <span class="grow"></span>
+            <label class="fmSnap">吸附
+              <select id="fmSnap">
+                <option value="frame">帧</option>
+                <option value="key">关键帧</option>
+                <option value="off">关</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
         <!-- 审核 & 标记错误（就放在视频右边，边看边标） -->
         <div class="auditbox">
           <div class="btnrow" style="margin-bottom:7px">
@@ -311,6 +364,48 @@
         <tbody id="markBody"></tbody>
       </table>
       <div class="empty" id="markEmpty">还没有切点。把鼠标放到视频上，向下滚动滚轮打点。</div>
+    </div>
+
+    <!-- 打点后期微调：±帧数 + 拉条吸附 -->
+    <div class="fine" id="fineBox">
+      <div class="row" style="align-items:center">
+        <span class="grouplabel" style="margin:0">打点微调</span>
+        <span class="stat" id="fineInfo" style="margin:0">先在下面表里点一行选中切点，或点时间轴上的黄色节点</span>
+        <span class="grow"></span>
+        <label class="lbl">吸附
+          <select id="fineSnap" style="width:auto">
+            <option value="frame">帧（推荐）</option>
+            <option value="key">关键帧（流拷贝必用）</option>
+            <option value="off">不吸附</option>
+          </select>
+        </label>
+      </div>
+      <div class="btnrow" style="margin-top:8px">
+        <button class="btn sm" data-nudge="-10">−10 帧</button>
+        <button class="btn sm" data-nudge="-5">−5 帧</button>
+        <button class="btn sm" data-nudge="-1">−1 帧</button>
+        <span class="nudgein">
+          <input type="number" id="fineN" value="1" min="1" max="9999" step="1">
+          <em>帧</em>
+        </span>
+        <button class="btn sm gold" id="fineBack">◀ 退 N 帧</button>
+        <button class="btn sm gold" id="fineFwd">进 N 帧 ▶</button>
+        <button class="btn sm" data-nudge="1">+1 帧</button>
+        <button class="btn sm" data-nudge="5">+5 帧</button>
+        <button class="btn sm" data-nudge="10">+10 帧</button>
+        <span class="grow"></span>
+        <button class="btn sm blue" id="fineJump">↦ 跳到该切点</button>
+        <button class="btn sm" id="fineKeySnap">⇥ 吸附到最近关键帧</button>
+      </div>
+      <div class="row" style="margin-top:8px;align-items:center">
+        <span class="stat" style="margin:0;white-space:nowrap">拉条微调</span>
+        <input type="range" id="fineRange" min="-30" max="30" value="0" step="1" style="flex:1;min-width:160px">
+        <span class="stat" id="fineVal" style="margin:0;min-width:96px;text-align:right">0 帧</span>
+      </div>
+      <div class="hint" style="margin-top:4px">
+        选中切点后用这些按钮/拉条把它前后挪：一帧 = 1/帧率 秒（当前 <b id="fineFps">—</b>）。
+        「帧」吸附让切点落在整帧上；拍的是流拷贝模式、或者切点压在不该压的地方时，用「关键帧」吸附（流拷贝切点必须落在关键帧上才无损）。
+      </div>
     </div>
   </div>
 
@@ -830,11 +925,13 @@
       if (isStart) tr.className = (tr.className ? tr.className + ' ' : '') + 'startrow';
       tr.innerHTML = `
         <td class="num">#${i + 1}</td>
-        <td class="num">${tc(t)}</td>
+        <td class="num">${tc(t)}<div class="hint" style="font-size:10.5px;margin:0">第 ${toFrame(t)} 帧</div></td>
         <td class="num">${fx(t)}</td>
         <td><div class="row" style="justify-content:flex-end">
           ${isStart ? '<span class="tag" style="background:#4f8cff22;border-color:#4f8cff66;color:#bcd4ff">起点</span>' : ''}
           ${isEnd ? '<span class="tag" style="background:#37d39b22;border-color:#37d39b66;color:#8ef0c8">结尾</span>' : ''}
+          <button class="mini ${i === S.selCut ? 'primary' : ''}" data-pick="${i}"
+            title="选中这个切点，然后用下面的「打点微调」按帧挪（快捷键 , / . ；按住 Shift 一次 5 帧）">${i === S.selCut ? '已选中' : '选中'}</button>
           <button class="mini ${isStart ? '' : 'ghost'}" data-start="${i}"
             title="把这里设为起点：之前的内容不切片、不烧录，编号从这段重新从 1 开始；再点一次取消">${isStart ? '取消起点' : '设为起点'}</button>
           <button class="mini ${isEnd ? '' : 'ghost'}" data-end="${i}"
@@ -845,6 +942,14 @@
       tb.appendChild(tr);
     });
     tb.querySelectorAll('[data-seek]').forEach(b => b.onclick = () => { $('video').currentTime = +b.dataset.seek; });
+    tb.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+      const i = +b.dataset.pick;
+      if (S.cuts[i] == null) return;
+      S.selCut = i;
+      renderTL(); renderMarks();
+      $('video').currentTime = S.cuts[i];
+      flash(`已选中切点 #${i + 1} @ ${tc(S.cuts[i])}（第 ${toFrame(S.cuts[i])} 帧）— 用下面的「打点微调」按帧挪`);
+    });
     tb.querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
       const t = S.cuts[+b.dataset.start];
       if (t == null) return;
@@ -900,7 +1005,178 @@
         : `00:00.00 → ${tc(S.duration)}（整段视频）`}</span>
       <b>选中切点</b><span>${S.selCut >= 0 && S.cuts[S.selCut] != null ? '#' + (S.selCut + 1) + ' @ ' + tc(S.cuts[S.selCut]) : '未选中'}</span>`;
     renderMarkSaveInfo();
+    fineInfoText();
   }
+
+  /* ---------- 打点后期微调：±帧数 / 拉条吸附 / 关键帧吸附 ---------- */
+  const vidFps = () => { const f = +((S.info || {}).fps); return (isFinite(f) && f > 1) ? f : 25; };
+  const toFrame = t => Math.round((+t || 0) * vidFps());
+  const frameToT = n => +((+n || 0) / vidFps()).toFixed(3);
+  const SNAP_EPS = 0.0006;
+
+  function fineInfoText(){
+    const el = $('fineInfo'), fpsEl = $('fineFps');
+    if (fpsEl) fpsEl.textContent = vidFps() + ' fps';
+    const fmInfo = $('fmInfo'), fmBox = $('fmBox');
+    const i = S.selCut;
+    if (i < 0 || S.cuts[i] == null){
+      if (el) {
+        el.textContent = S.cuts.length ? '先选中一个切点（点表里的「选中」或时间轴黄色节点）' : '还没有切点';
+        $('fineBox').classList.add('off');
+      }
+      if (fmInfo) fmInfo.textContent = S.cuts.length ? '未选中切点' : '还没有切点';
+      if (fmBox) fmBox.classList.add('off');
+      return;
+    }
+    if ($('fineBox')) $('fineBox').classList.remove('off');
+    if (fmBox) fmBox.classList.remove('off');
+    const t = S.cuts[i];
+    const tag = isStartCut(t) ? ' · 起点' : (isEndCut(t) ? ' · 结尾' : '');
+    if (el) el.innerHTML = `选中 <b>#${i + 1}</b> @ <b>${tc(t)}</b> · 第 <b>${toFrame(t)}</b> 帧${tag}`;
+    if (fmInfo) fmInfo.innerHTML = `#${i + 1} ${tc(t)} · 第 ${toFrame(t)} 帧${tag ? ' · ' + tag.replace(' · ', '') : ''}`;
+  }
+
+  /** 关键帧列表（只在切点附近取一段，很快） */
+  const keyCache = new Map();
+  async function keyframesNear(t){
+    const key = Math.round(t * 2) / 2;                     // 半秒粒度缓存
+    if (keyCache.has(key)) return keyCache.get(key);
+    const r = await API('/api/keyframes', { path: S.src, t, window: 8 });
+    const ks = (r && r.ok && Array.isArray(r.keys)) ? r.keys : [];
+    keyCache.set(key, ks);
+    return ks;
+  }
+
+  /** 把选中的切点挪 frames 帧（可吸附到帧 / 关键帧）；返回是否成功 */
+  async function nudgeCut(frames, silent){
+    const i = S.selCut;
+    if (i < 0 || S.cuts[i] == null){ if (!silent) flash('先选中一个切点'); return false; }
+    const fps = vidFps();
+    const snap = $('fineSnap').value;
+    const D = S.duration || 0;
+    const old = S.cuts[i];
+    let t = old + (+frames || 0) / fps;
+
+    if (snap === 'key'){                                    // 吸附到最近的关键帧
+      try {
+        const ks = await keyframesNear(old);
+        if (ks.length){
+          let best = null, bd = 1e9;
+          for (const k of ks){ const d = Math.abs(k - t); if (d < bd){ bd = d; best = k; } }
+          if (best != null) t = best;
+        } else if (!silent) flash('这段附近取不到关键帧，已按整帧吸附');
+      } catch (e) { if (!silent) flash('关键帧取不到（' + e.message + '），已按整帧吸附'); }
+    }
+    if (snap !== 'off') t = frameToT(toFrame(t));           // 整帧吸附
+
+    t = +t.toFixed(3);
+    t = Math.max(0.021, Math.min(D - 0.021, t));
+    // 不能和别的切点重合（半帧以内算重合）
+    const clash = S.cuts.some((c, j) => j !== i && Math.abs(c - t) < 0.5 / fps);
+    if (clash){ if (!silent) flash('那个位置已经有切点了，换个方向挪一点'); return false; }
+    if (Math.abs(t - old) < SNAP_EPS && snap !== 'off' && !silent){ flash('已经在最近的帧上了（' + tc(t) + '）'); }
+
+    const wasEnd = isEndCut(old), wasStart = isStartCut(old);
+    S.cuts[i] = t;
+    if (wasEnd) S.endCutTime = t;
+    if (wasStart) S.startCutTime = t;
+    S.cuts.sort((a, b) => a - b);
+    S.selCut = S.cuts.indexOf(t);
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+    if (!silent){
+      flash(`切点 #${S.selCut + 1} → ${tc(t)}（第 ${toFrame(t)} 帧，${(t - old >= 0 ? '+' : '') + (t - old).toFixed(3)}s）`);
+    }
+    return true;
+  }
+
+  /** 一个「按帧微调」拉条：按下取基准 → 拖动实时挪 → 松手提交并归零（两个拉条共用这套逻辑） */
+  function setupFineSlider(rangeEl, valEl){
+    if (!rangeEl) return;
+    let base = null;
+    const showVal = v => { if (valEl) valEl.textContent = (v > 0 ? '+' : '') + v + ' 帧'; };
+    rangeEl.addEventListener('pointerdown', () => {
+      base = (S.selCut >= 0 && S.cuts[S.selCut] != null) ? S.cuts[S.selCut] : null;
+      if (base == null) flash('先在右边审核表里选中一个切点（点「选中」或时间轴上黄色节点）');
+    });
+    rangeEl.addEventListener('input', async () => {
+      const v = +rangeEl.value;
+      showVal(v);
+      if (base == null || S.selCut < 0 || S.cuts[S.selCut] == null) return;
+      const i = S.selCut, wasEnd = isEndCut(base), wasStart = isStartCut(base);
+      const fps = vidFps();
+      let tt = base + v / fps;
+      const snap = $('fineSnap').value;
+      if (snap === 'key'){
+        try {
+          const ks = await keyframesNear(base);
+          if (ks.length){ let b = null, bd = 1e9; for (const k of ks){ const d = Math.abs(k - tt); if (d < bd){ bd = d; b = k; } } if (b != null) tt = b; }
+        } catch (e) {}
+      }
+      if (snap !== 'off') tt = frameToT(toFrame(tt));
+      tt = Math.max(0.021, Math.min((S.duration || 0) - 0.021, +tt.toFixed(3)));
+      if (S.cuts.some((c, j) => j !== i && Math.abs(c - tt) < 0.5 / fps)) return;
+      S.cuts[i] = tt;
+      if (wasEnd) S.endCutTime = tt;
+      if (wasStart) S.startCutTime = tt;
+      S.cuts.sort((a, b) => a - b);
+      S.selCut = S.cuts.indexOf(tt);
+      rebuild(); renderTL(); renderMarks(); renderSegs();
+      $('video').currentTime = tt;                       // 画面跟着走，好对帧
+    });
+    const commit = () => {
+      if (base != null && S.selCut >= 0 && S.cuts[S.selCut] != null){
+        flash(`切点 #${S.selCut + 1} → ${tc(S.cuts[S.selCut])}（第 ${toFrame(S.cuts[S.selCut])} 帧）`);
+      }
+      base = null; rangeEl.value = 0; showVal(0); fineInfoText();
+    };
+    rangeEl.addEventListener('change', commit);
+    rangeEl.addEventListener('dblclick', () => { rangeEl.value = 0; showVal(0); });
+    showVal(0);
+  }
+
+  function selectCutBy(delta){
+    if (!S.cuts.length) return flash('还没有切点');
+    let i = S.selCut < 0 ? (delta > 0 ? -1 : 0) : S.selCut;
+    i = (i + delta + S.cuts.length) % S.cuts.length;
+    S.selCut = i;
+    renderTL(); renderMarks();
+    $('video').currentTime = S.cuts[i];
+    flash(`已选中切点 #${i + 1} @ ${tc(S.cuts[i])}（第 ${toFrame(S.cuts[i])} 帧）`);
+  }
+
+  function bindFine(){
+    const N = () => Math.max(1, Math.min(9999, Math.round(+$('fineN').value || 1)));
+    document.querySelectorAll('[data-nudge]').forEach(b => b.onclick = () => nudgeCut(+b.dataset.nudge));
+    document.querySelectorAll('[data-fm]').forEach(b => b.onclick = () => nudgeCut(+b.dataset.fm));   // 视频右边小条的 ±帧
+    $('fineBack').onclick = () => nudgeCut(-N());
+    $('fineFwd').onclick = () => nudgeCut(N());
+    $('fmPrev').onclick = () => selectCutBy(-1);
+    $('fmNext').onclick = () => selectCutBy(1);
+    $('fineJump').onclick = () => {
+      const i = S.selCut;
+      if (i < 0 || S.cuts[i] == null) return flash('先选中一个切点');
+      $('video').currentTime = S.cuts[i];
+      flash('已跳到 ' + tc(S.cuts[i]));
+    };
+    $('fineKeySnap').onclick = async () => {
+      const i = S.selCut;
+      if (i < 0 || S.cuts[i] == null) return flash('先选中一个切点');
+      setSnapMode('key');
+      const before = S.cuts[i];
+      const ok = await nudgeCut(0, true);
+      if (ok && Math.abs(S.cuts[S.selCut] - before) < SNAP_EPS) flash('这个切点已经贴在关键帧 ' + tc(S.cuts[S.selCut]) + ' 上了');
+      else if (ok) flash('已吸附到关键帧 ' + tc(S.cuts[S.selCut]));
+    };
+    // 两处拉条共用同一套逻辑（大面板 + 视频右边的小条）
+    setupFineSlider($('fineRange'), $('fineVal'));
+    setupFineSlider($('fmRange'), $('fmVal'));
+    // 两处「吸附」下拉互相同步
+    const syncSnap = v => { $('fineSnap').value = v; $('fmSnap').value = v; };
+    $('fineSnap').onchange = () => { $('fmSnap').value = $('fineSnap').value; flash('吸附方式：' + $('fineSnap').selectedOptions[0].textContent); };
+    $('fmSnap').onchange = () => { $('fineSnap').value = $('fmSnap').value; flash('吸附方式：' + $('fmSnap').selectedOptions[0].textContent); };
+    syncSnap($('fineSnap').value);
+  }
+  function setSnapMode(v){ $('fineSnap').value = v; $('fmSnap').value = v; }
 
   // ---------- 当前播放的段：列表 & 时间轴高亮 + 播放时自动跟随 ----------
   let playIdx = -1;            // 当前高亮的段下标
@@ -1169,6 +1445,163 @@
     };
   }
 
+  /* ================= 标记图渲染（浏览器 canvas；不依赖 Python） =================
+     与 overlay_gen.py 的几何算法一一对应：符号边长=画面宽×badgeScale、编号字号=画面高×numberSize、
+     间距、上下顺序、九宫格锚点、偶数坐标。渲染完把 PNG 上传给本地服务，导出时由 ffmpeg 叠加。 */
+  const ANCHOR_F = {
+    'top-left': [0, 0], 'top-center': [.5, 0], 'top-right': [1, 0],
+    'mid-left': [0, .5], 'center': [.5, .5], 'mid-right': [1, .5],
+    'bottom-left': [0, 1], 'bottom-center': [.5, 1], 'bottom-right': [1, 1],
+  };
+  const mkCv = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
+  const hex2rgb = (s, d) => {
+    s = String(s || '').trim().replace(/^#/, '');
+    if (s.length === 3) s = s.split('').map(c => c + c).join('');
+    if (!/^[0-9a-f]{6}$/i.test(s)) return d;
+    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
+  };
+  /** 紧裁边：扫描 alpha 找内容边界（等价 PIL 的 getbbox），保证各切片里符号/编号相对位置一致 */
+  function trimCv(cv) {
+    const W = cv.width, H = cv.height;
+    if (!W || !H) return cv;
+    const d = cv.getContext('2d').getImageData(0, 0, W, H).data;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (d[(y * W + x) * 4 + 3] > 8) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < x0 || y1 < y0) return cv;
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    const out = mkCv(w, h);
+    out.getContext('2d').drawImage(cv, x0, y0, w, h, 0, 0, w, h);
+    return out;
+  }
+  function fitSquare(cv, side) {
+    const k = Math.min(side / cv.width, side / cv.height);
+    const out = mkCv(side, side), c = out.getContext('2d');
+    const w = Math.max(1, Math.round(cv.width * k)), h = Math.max(1, Math.round(cv.height * k));
+    c.drawImage(cv, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h);
+    return out;
+  }
+  /** 矢量绿勾/红叉（白色描边贴纸风）；S = 边长 */
+  function badgeVector(err, S) {
+    const cv = mkCv(S, S), c = cv.getContext('2d');
+    const m = S * 0.06, box = S - 2 * m;
+    const lw = box * 0.21, ow = box * 0.06;
+    const segs = err
+      ? [[[m + box * .14, m + box * .14], [m + box * .86, m + box * .86]],
+         [[m + box * .86, m + box * .14], [m + box * .14, m + box * .86]]]
+      : [[[m + box * .08, m + box * .55], [m + box * .37, m + box * .85], [m + box * .93, m + box * .12]]];
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    const stroke = () => segs.forEach(pts => {
+      c.beginPath();
+      pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])));
+      c.stroke();
+    });
+    c.strokeStyle = '#fff'; c.lineWidth = lw + 2 * ow; stroke();
+    c.strokeStyle = err ? '#ef4444' : '#22c55e'; c.lineWidth = lw; stroke();
+    return cv;
+  }
+  /** 系统彩色表情 ✅/❌（用 Segoe UI Emoji，和之前 PIL 用的是同一套字） */
+  function badgeEmoji(ch, px) {
+    const cv = mkCv(px * 2, px * 2), c = cv.getContext('2d');
+    c.font = `${px}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    c.fillText(ch, px * 0.5, px * 0.5);
+    const t = trimCv(cv);
+    return t === cv ? null : t;                       // 表情没画出来（极老系统）→ 返回 null 让调用方走矢量
+  }
+  /** 编号字体：内置的用系统字体名；自定义 ttf 走 /font 端点加载成 FontFace */
+  async function numberFamily(fontPath) {
+    const base = String(fontPath || '').split(/[\\/]/).pop().toLowerCase();
+    if (!base || /msyhbd/.test(base)) return { family: 'Microsoft YaHei', weight: 'bold' };
+    if (/^msyh\.ttc$/.test(base)) return { family: 'Microsoft YaHei', weight: 'normal' };
+    if (/simhei/.test(base)) return { family: 'SimHei', weight: 'normal' };
+    if (/arialbd/.test(base)) return { family: 'Arial', weight: 'bold' };
+    if (/^arial/.test(base)) return { family: 'Arial', weight: 'normal' };
+    if (/\.ttf?$/i.test(base) || /\.otf$/i.test(base)) {
+      const key = 'tzfont_' + base.replace(/[^\w]/g, '');
+      try {
+        if (!document.fonts.check(`16px "${key}"`)) {
+          const r = await fetch('/font?path=' + encodeURIComponent(fontPath));
+          if (r.ok) {
+            const ff = new FontFace(key, await r.arrayBuffer());
+            await ff.load();
+            document.fonts.add(ff);
+          }
+        }
+        if (document.fonts.check(`16px "${key}"`)) return { family: key, weight: 'bold' };
+      } catch (e) {}
+    }
+    return { family: 'Microsoft YaHei', weight: 'bold' };
+  }
+  /** 编号图：白字 + 黑描边，紧裁边（字号/颜色/描边宽跟着 burn 配置走） */
+  function numberCanvas(txt, cfg, vh, fam) {
+    const t = String(txt);
+    const npx = Math.max(8, Math.round(vh * (cfg.numberSize || .055)));
+    const sw = Math.max(0, Math.round(vh * (cfg.strokeWidth || 0)));
+    const pad = sw + Math.max(2, Math.floor(npx / 12));
+    const cv = mkCv(npx * (t.length + 2) + pad * 2, npx * 3 + pad * 2);
+    const c = cv.getContext('2d');
+    c.font = `${fam.weight || 'bold'} ${npx}px "${fam.family}", "Microsoft YaHei", sans-serif`;
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    c.lineJoin = 'round'; c.miterLimit = 2;
+    if (sw > 0) { c.lineWidth = sw * 2; c.strokeStyle = cfg.numberStroke || '#000000'; c.strokeText(t, pad, pad); }
+    c.fillStyle = cfg.numberColor || '#FFFFFF';
+    c.fillText(t, pad, pad);
+    return trimCv(cv);
+  }
+  /** 生成整批标记图：返回 [{id,x,y,w,h,badgeStyle,layers:[{kind,png,x,y,w,h}]}]（png 为 dataURL） */
+  async function buildOverlayItems(segs, cfg, vw, vh) {
+    const fam = await numberFamily(cfg.fontPath);
+    const badgePx = Math.max(16, Math.round(vw * (cfg.badgeScale || .22)));
+    const gap = Math.max(0, Math.round(vh * (cfg.gap || 0)));
+    const fx = (ANCHOR_F[cfg.anchor] || [.5, 1])[0], fy = (ANCHOR_F[cfg.anchor] || [.5, 1])[1];
+    const badgeCache = {};
+    const badgeOf = err => {
+      const k = err ? 'no' : 'ok';
+      if (badgeCache[k]) return badgeCache[k];
+      let img = null;
+      if ((cfg.badgeStyle || 'emoji') === 'emoji') img = badgeEmoji(err ? '\u274c' : '\u2705', Math.max(32, badgePx));
+      if (!img) img = badgeVector(err, badgePx);
+      badgeCache[k] = fitSquare(img, badgePx);
+      return badgeCache[k];
+    };
+    const items = [];
+    for (const s of segs) {
+      const badge = badgeOf(!!s.err);
+      const num = numberCanvas(s.num != null ? s.num : '', cfg, vh, fam);
+      const seq = (cfg.order || 'badgeTop') === 'badgeTop' ? [['badge', badge], ['number', num]] : [['number', num], ['badge', badge]];
+      const W = Math.max.apply(null, seq.map(x => x[1].width));
+      const H = seq.reduce((a, x) => a + x[1].height, 0) + gap * (seq.length - 1);
+      let x = Math.round((vw - W) * fx + vw * (+cfg.offsetX || 0));
+      let y = Math.round((vh - H) * fy + vh * (+cfg.offsetY || 0));
+      x = Math.max(0, Math.min(vw - W, x)); y = Math.max(0, Math.min(vh - H, y));
+      x -= x % 2; y -= y % 2;                            // yuv420p：取偶数坐标
+      const layers = [];
+      let yoff = 0;
+      for (const [kind, cv] of seq) {
+        const lx = x + Math.round((W - cv.width) / 2), ly = y + yoff;
+        layers.push({ kind, png: cv.toDataURL('image/png'), x: lx - (lx % 2), y: ly - (ly % 2), w: cv.width, h: cv.height });
+        yoff += cv.height + gap;
+      }
+      items.push({ id: String(s.seq), num: s.num, err: !!s.err, x, y, w: W, h: H, badgeStyle: (cfg.badgeStyle || 'emoji'), layers });
+    }
+    return items;
+  }
+  /** 渲染 + 上传（导出前调用）；成功返回 runTag */
+  async function uploadOverlays(segs, cfg, vw, vh) {
+    const items = await buildOverlayItems(segs, cfg, vw, vh);
+    const runTag = 'ui' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const r = await API('/api/overlay-upload', { runTag, badgeStyle: cfg.badgeStyle || 'emoji', items });
+    if (!r.ok) throw new Error(r.error || '标记图上传失败');
+    return { runTag, layers: r.layers, kb: r.kb, items };
+  }
+
   async function previewBurn(){
     if (!S.src || !S.info) return flash('请先载入视频');
     const cfg = burnPayload();
@@ -1179,33 +1612,31 @@
     const num = (S.segs[0] && S.segs[0].num) || 1;
     $('bnPv').style.display = 'flex';
     $('bnPvMsg').textContent = '生成中…';
-    const r = await API('/api/badge-preview', {
-      w: W, h: H, cfg,
-      items: [{ id: 'ok', num, err: false }, { id: 'no', num: 1, err: true }],
-    });
-    if (!r.ok) { $('bnPvMsg').textContent = '预览失败：' + (r.error || ''); return flash('预览失败'); }
-    const ok = (r.items || []).find(x => x.id === 'ok') || {};
-    const no = (r.items || []).find(x => x.id === 'no') || {};
-    $('bnPvImg').src = `/frame?path=${encodeURIComponent(S.src)}&t=${t}&w=480`;
-    // 逐层按真实坐标铺在静帧上（符号/编号各自的图与位置）
-    const layerBox = $('bnPvLayers');
-    layerBox.innerHTML = '';
-    (ok.layers || []).forEach(L => {
-      if (!L.b64) return;
-      const im = document.createElement('img');
-      im.className = 'badgeimg';
-      im.src = 'data:image/png;base64,' + L.b64;
-      im.style.left = (L.x / W * 100) + '%';
-      im.style.top = (L.y / H * 100) + '%';
-      im.style.width = (L.w / W * 100) + '%';
-      layerBox.appendChild(im);
-    });
-    $('bnThumbOk').src = ok.b64 ? 'data:image/png;base64,' + ok.b64 : '';
-    $('bnThumbNo').src = no.b64 ? 'data:image/png;base64,' + no.b64 : '';
-    $('bnPvMsg').textContent = `画面 ${W}×${H} · 风格 ${r.badgeStyle}`
-      + `（静帧示意；符号 ${BN.delay}s 出现${BN.badgeShow > 0 ? `、${BN.badgeShow}s 后消失` : '、不消失'}`
-      + ` / 编号 ${BN.numDelay}s 出现${BN.numberShow > 0 ? `、${BN.numberShow}s 后消失` : '、不消失'}）`
-      + (r.warning ? ' · ⚠ ' + r.warning : '');
+    try {
+      // 页面内直接用 canvas 画（和导出用的是同一段代码，所以预览=成片）
+      const items = await buildOverlayItems([{ seq: 1, num, err: false }, { seq: 2, num: 1, err: true }], cfg, W, H);
+      const ok = items[0] || { layers: [] }, no = items[1] || { layers: [] };
+      $('bnPvImg').src = `/frame?path=${encodeURIComponent(S.src)}&t=${t}&w=480`;
+      const layerBox = $('bnPvLayers');
+      layerBox.innerHTML = '';
+      (ok.layers || []).forEach(L => {
+        const im = document.createElement('img');
+        im.className = 'badgeimg';
+        im.src = L.png;
+        im.style.left = (L.x / W * 100) + '%';
+        im.style.top = (L.y / H * 100) + '%';
+        im.style.width = (L.w / W * 100) + '%';
+        layerBox.appendChild(im);
+      });
+      $('bnThumbOk').src = ok.layers && ok.layers[0] ? ok.layers[0].png : '';
+      $('bnThumbNo').src = no.layers && no.layers[0] ? no.layers[0].png : '';
+      $('bnPvMsg').textContent = `画面 ${W}×${H} · 风格 ${ok.badgeStyle || cfg.badgeStyle} · 浏览器渲染（不依赖 Python）`
+        + `（静帧示意；符号 ${BN.delay}s 出现${BN.badgeShow > 0 ? `、${BN.badgeShow}s 后消失` : '、不消失'}`
+        + ` / 编号 ${BN.numDelay}s 出现${BN.numberShow > 0 ? `、${BN.numberShow}s 后消失` : '、不消失'}）`;
+    } catch (e) {
+      $('bnPvMsg').textContent = '预览失败：' + e.message;
+      flash('预览失败：' + e.message);
+    }
   }
   $('bnPreviewBtn').onclick = previewBurn;
 
@@ -1441,6 +1872,11 @@
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     const k = String(e.key || '').toLowerCase();
+    if (k === ',' || k === '.'){                    // , . 按帧微调选中的切点（Shift 一次 5 帧）
+      e.preventDefault();
+      nudgeCut(k === ',' ? -(e.shiftKey ? 5 : 1) : (e.shiftKey ? 5 : 1));
+      return;
+    }
     if (HOT.key && k === HOT.key){ e.preventDefault(); addMarker(); return; }
     if (HOT.errKey && k === HOT.errKey){ e.preventDefault(); toggleErrAtPlayhead(); }
   }, true);
@@ -1540,8 +1976,21 @@
     if (!ok) return;
     $('renderBtn').disabled = true;
     $('p3bar').style.width = '10%';
-    $('p3msg').textContent = '正在切片…';
     setStep(2);
+    // 标记图由本页 canvas 渲染后交给本地服务（不需要 Python）；失败也不中断，交给服务端报错
+    let overlayRun = '';
+    if (burnCfg.enabled && S.info && S.info.width) {
+      $('p3msg').textContent = '正在生成 ✅/❌ + 编号标记图…';
+      try {
+        const up = await uploadOverlays(S.segs, burnCfg, S.info.width, S.info.height);
+        overlayRun = up.runTag;
+      } catch (err) {
+        $('renderBtn').disabled = false;
+        $('p3msg').textContent = '标记图生成失败：' + err.message;
+        return flash('标记图生成失败：' + err.message);
+      }
+    }
+    $('p3msg').textContent = '正在切片…';
     const r = await API('/api/export', {
       path: S.src,
       cuts: S.cuts.slice(),
@@ -1552,6 +2001,7 @@
       outDir,
       mode: $('mode').value, prefix: $('prefix').value.trim() || 'clip_',
       burn: burnCfg,
+      overlayRun,                            // 页面渲染好的标记图批次
     });
     if (r.error){ $('renderBtn').disabled = false;
       $('p3msg').textContent = '失败: ' + r.error; return; }
@@ -1624,11 +2074,23 @@
       if (env.defaultOutDir) $('outDir').value = env.defaultOutDir;
       if (env.sfxOk) BN.sfxOkPath = env.sfxOk;
       if (env.sfxNo) BN.sfxNoPath = env.sfxNo;
-      if (env.pillow === false) $('bnHint').textContent = '⚠ 未检测到 Pillow，烧录不可用（将只输出干净切片）';
-      else if (env.sfxOkExists === false || env.sfxNoExists === false) $('bnHint').textContent = '⚠ 音效文件缺失，请检查路径';
-      else $('bnHint').textContent = `音效默认：assets\\对.mp3 / 错.mp3`;
+      if (env.sfxOkExists === false || env.sfxNoExists === false) $('bnHint').textContent = '⚠ 音效文件缺失，请检查路径';
+      else $('bnHint').textContent = `标记由本页渲染（不需要 Python）· 音效默认：assets\\对.mp3 / 错.mp3`;
+      // 换电脑时唯一可能缺的就是 ffmpeg：缺了给一条显眼的横幅（打点/审核照常，只是导不出成片）
+      const warn = [];
+      if (env.ffmpeg === false) {
+        warn.push('<b>没找到 ffmpeg</b> —— 只有「导出成片」需要它（打点、审核、存档、导入打点都不受影响）。'
+          + '最省事：双击工具目录里的 <b>安装依赖.cmd</b>，它会自动下载安装（约 80MB，装一次就行）；'
+          + '也可以手动装：<span class="mono">https://www.gyan.dev/ffmpeg/builds/</span> 解压后把 <span class="mono">bin</span> 加进系统 PATH。');
+      }
+      if (warn.length) {
+        $('envWarn').style.display = '';
+        $('envWarn').innerHTML = '⚠ <b>这台电脑还缺一个 ffmpeg</b>：<br>· ' + warn.join('<br>· ')
+          + '<br><span style="opacity:.75">装好后重启工具；✅/❌ + 编号由浏览器渲染，不再需要 Python。</span>';
+      }
     }
     loadBurnLS();          // 本地保存的界面配置优先
+    bindFine();
     buildGrid();
     applyBurnUI();
     updateSegStat();
