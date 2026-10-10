@@ -281,6 +281,73 @@
             <span class="stat" id="hkInfo" style="margin:0"></span>
           </div>
         </details>
+
+        <details class="toolbox" id="ocrBox" open>
+          <summary>自动打点（认字幕变化）<span class="stat" id="ocrStat" style="margin-left:10px">检测中…</span></summary>
+          <div class="note" style="margin-top:8px">
+            只看画面下方那一条字幕：<b>字幕一换就记一个切点</b>。全程本地离线（RapidOCR 本地模型），不上传任何东西。
+            识别完先列出来给你核对，确认后再一键加入切点。
+          </div>
+          <div class="btnrow" style="margin-top:9px">
+            <label class="lbl">字幕区域
+              <select id="ocrBand">
+                <option value="0.25,0.75">下 1/4</option>
+                <option value="0.33,0.67">下 1/3</option>
+                <option value="0.5,0.5">下半屏</option>
+                <option value="0.3,0.35">中间偏下</option>
+                <option value="0.25,0">上 1/4</option>
+              </select>
+            </label>
+            <label class="lbl">高度 <input type="number" id="ocrBandH" value="25" min="3" max="100" style="width:56px">%</label>
+            <label class="lbl">上边距 <input type="number" id="ocrBandY" value="75" min="0" max="97" style="width:56px">%</label>
+          </div>
+          <div class="btnrow" style="margin-top:7px">
+            <label class="lbl">灵敏度 <input type="number" id="ocrScene" value="4" min="1" max="50" style="width:52px">%</label>
+            <label class="lbl">采样 <input type="number" id="ocrFps" value="8" min="3" max="15" style="width:52px">帧/秒</label>
+            <label class="lbl">取字延迟 <input type="number" id="ocrDelay" value="0.5" min="0" max="3" step="0.1" style="width:56px">秒</label>
+            <label class="lbl">相似度 <input type="number" id="ocrSim" value="72" min="40" max="95" style="width:56px">%</label>
+            <label class="lbl">最小间隔 <input type="number" id="ocrGap" value="0.8" min="0.2" max="10" step="0.1" style="width:56px">秒</label>
+          </div>
+          <div class="btnrow" style="margin-top:7px">
+            <label class="lbl">范围 <input type="number" id="ocrFrom" placeholder="从 秒" min="0" style="width:70px"> ~
+              <input type="number" id="ocrTo" placeholder="到 秒" min="0" style="width:70px"></label>
+            <button class="btn ok" id="ocrRun">🔍 开始识别字幕变化</button>
+            <button class="btn sm ghost" id="ocrHint" title="OCR 没装好时看这里">装 OCR？</button>
+            <span class="grow"></span>
+            <span class="stat" id="ocrMsg" style="margin:0"></span>
+          </div>
+          <div class="btnrow" style="margin-top:7px;align-items:center">
+            <label class="lbl">🔑 关键词
+              <input type="text" id="ocrKw" placeholder="飞,顺,马（逗号/空格分隔）" style="width:210px">
+            </label>
+            <label class="switch" id="ocrKwAutoWrap" title="OCR 扫完自动按关键词标错">
+              <span class="track"></span><span>识别后自动标错</span>
+            </label>
+            <button class="btn warn sm" id="ocrKwApply">按关键词标错</button>
+            <span class="hint" style="margin:0">命中的句子会自动打点并标 ❌（每句各自成段）</span>
+          </div>
+          <div class="bar" style="margin-top:7px"><i id="ocrBar"></i></div>
+
+          <div id="ocrResWrap" style="display:none;margin-top:10px">
+            <div class="btnrow" style="margin-bottom:7px">
+              <span class="stat" id="ocrSum" style="margin:0"></span>
+              <span class="grow"></span>
+              <button class="btn ok sm" id="ocrAddAll">＋ 全部加入切点</button>
+              <button class="btn sm" id="ocrAddSel">＋ 只加勾选的</button>
+              <button class="btn sm ghost danger" id="ocrClear">清空结果</button>
+            </div>
+            <div class="scroll" style="max-height:260px">
+              <table>
+                <thead><tr>
+                  <th style="width:32px"><input type="checkbox" id="ocrCkAll" checked></th>
+                  <th style="width:96px">时间</th><th style="width:52px">状态</th><th>识别到的字幕</th>
+                  <th style="width:64px;text-align:right">操作</th>
+                </tr></thead>
+                <tbody id="ocrBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </details>
       </div>
       <div>
         <div class="kv" id="markInfo"></div>
@@ -293,6 +360,12 @@
             <span class="grow"></span>
             <button class="btn xs" id="fmPrev" title="选中上一个切点（微调快捷键 , . 是挪一帧）">◀</button>
             <button class="btn xs" id="fmNext" title="选中下一个切点">▶</button>
+          </div>
+          <div class="row" style="align-items:center;gap:6px;margin-top:6px">
+            <button class="btn xs blue" id="fmPick" title="选中「正在播的那一段」的切点（快捷键 S）">📍 选中当前</button>
+            <button class="btn xs" id="fmAdd" title="在播放位置打一个点并选中它（同打点键 M）">＋ 在此打点</button>
+            <span class="grow"></span>
+            <span class="fmVal" id="fmPos" title="当前播放位置">—</span>
           </div>
           <div class="row" style="align-items:center;gap:6px;margin-top:6px">
             <button class="btn xs" data-fm="-5" title="退 5 帧">−5</button>
@@ -460,6 +533,28 @@
             <option value="vector">矢量绿勾/红叉</option>
           </select>
         </label>
+      </div>
+
+      <div class="btnrow" style="margin-top:10px">
+        <span class="grouplabel">标题</span>
+        <label class="switch" id="bnTitleWrap"><span class="track"></span><span>烧录标题</span></label>
+        <input type="text" id="bnTitleText" placeholder="挑战30条视频刷不到F8FQ" style="flex:1;min-width:220px">
+      </div>
+      <div class="btnrow" style="margin-top:8px">
+        <label>字号 <input type="number" id="bnTitleSize" min="2" max="20" step="0.5" style="width:58px">%高</label>
+        <label>位置
+          <select id="bnTitleAnchor">
+            <option value="top-center">上方居中</option>
+            <option value="top-left">左上</option>
+            <option value="top-right">右上</option>
+            <option value="mid-center">画面中央</option>
+            <option value="bottom-center">下方居中</option>
+          </select>
+        </label>
+        <label>往下 <input type="number" id="bnTitleOffY" min="-20" max="60" step="1" style="width:58px">%</label>
+        <label>颜色 <input type="color" id="bnTitleColor" style="width:44px;height:28px;padding:1px"></label>
+        <label>描边 <input type="color" id="bnTitleStroke" style="width:44px;height:28px;padding:1px"></label>
+        <label>描边宽 <input type="number" id="bnTitleStrokeW" min="0" max="1.5" step="0.05" style="width:58px">%高</label>
       </div>
 
       <div class="btnrow" style="margin-top:10px">
@@ -1008,11 +1103,225 @@
     fineInfoText();
   }
 
+  /* ---------- 自动打点：OCR 认字幕变化 ---------- */
+  const OCR = { rows: [], running: false, jobId: null };
+
+  async function ocrCheck(){
+    const el = $('ocrStat');
+    try {
+      const r = await API('/api/ocr/check', {});
+      el.textContent = r.ok ? 'OCR 就绪 · ' + (r.backend || 'RapidOCR') : '未装 OCR 模型（点右边看装法）';
+      el.style.color = r.ok ? '#8ef0c8' : '#ffb3b3';
+      $('ocrHint').style.display = r.ok ? 'none' : '';
+      if (!r.ok) $('ocrMsg').textContent = '点右边「装 OCR？」看装法';
+    } catch (e) { el.textContent = 'OCR 自检失败'; }
+  }
+
+  function ocrParams(){
+    const bh = Math.max(3, Math.min(100, +$('ocrBandH').value || 25)) / 100;
+    const by = Math.max(0, Math.min(100 - (bh * 100), +$('ocrBandY').value || 0)) / 100;
+    const from = $('ocrFrom').value === '' ? 0 : Math.max(0, +$('ocrFrom').value || 0);
+    const to = $('ocrTo').value === '' ? 0 : Math.max(0, +$('ocrTo').value || 0);
+    return {
+      bandH: bh, bandY: by, from, to,
+      scene: Math.max(0.01, Math.min(0.5, (+$('ocrScene').value || 4) / 100)),
+      fps: Math.max(3, Math.min(15, +$('ocrFps').value || 8)),
+      delay: Math.max(0, Math.min(3, +$('ocrDelay').value || 0.5)),
+      sim: Math.max(0.4, Math.min(0.95, (+$('ocrSim').value || 72) / 100)),
+      minGap: Math.max(0.2, Math.min(10, +$('ocrGap').value || 0.8)),
+    };
+  }
+
+  async function ocrRun(){
+    if (!S.src) return flash('先载入视频');
+    if (OCR.running) return flash('正在识别中…');
+    const pm = ocrParams();
+    if (pm.to && pm.from && pm.to <= pm.from) return flash('范围：结束要大于开始');
+    OCR.running = true;
+    $('ocrRun').disabled = true;
+    $('ocrMsg').textContent = '正在识别…';
+    $('ocrBar').style.width = '5%';
+    $('ocrResWrap').style.display = 'none';
+    try {
+      const r = await API('/api/ocr/scan', Object.assign({ path: S.src }, pm));
+      if (!r.ok) throw new Error(r.error || '识别没启动');
+      OCR.jobId = r.jobId;
+      for (;;) {
+        await new Promise(x => setTimeout(x, 900));
+        const j = await API('/api/job', { id: OCR.jobId });
+        const logs = (j.logs || []);
+        $('ocrMsg').textContent = logs.length ? logs[logs.length - 1].replace(/^.*?：/, '') : (j.message || '');
+        const m = /(\d+)\/(\d+)/.exec(logs.filter(l => /取帧|OCR 识别/.test(l)).slice(-1)[0] || '');
+        if (m) $('ocrBar').style.width = Math.max(8, Math.min(95, Math.round(+m[1] / +m[2] * 100))) + '%';
+        if (j.state === 'done') { $('ocrBar').style.width = '100%'; ocrRender(j.result || {}); break; }
+        if (j.state === 'error') {
+          $('ocrMsg').textContent = '识别失败：' + String(j.error || '').split('\n')[0];
+          if (/rapidocr|No module/i.test(String(j.error || ''))) { $('ocrHint').style.display = ''; $('ocrStat').textContent = '未装 OCR 模型'; }
+          break;
+        }
+      }
+    } catch (e) {
+      $('ocrMsg').textContent = '识别失败：' + e.message;
+    } finally {
+      OCR.running = false; $('ocrRun').disabled = false;
+    }
+  }
+
+  function ocrRender(res){
+    OCR.rows = (res.changes || []).map(c => ({ t: c.t, text: c.text, on: true, added: false }));
+    const st = res.stats || {};
+    $('ocrSum').textContent = `检出 ${OCR.rows.length} 处换句 · 候选 ${st.detected || 0} 个变化点 · 用时 ${st.seconds || 0}s`;
+    $('ocrMsg').textContent = OCR.rows.length ? '核对下面列表，确认后点「全部加入切点」' : '没找到字幕变化（试试把灵敏度调低、或换字幕区域）';
+    $('ocrResWrap').style.display = OCR.rows.length ? '' : 'none';
+    renderOcrRows();
+    if (OCR_KW_AUTO && ocrKeywords().length) applyOcrKeywords(true);   // 「识别后自动标错」
+  }
+
+  function renderOcrRows(){
+    const tb = $('ocrBody');
+    tb.innerHTML = '';
+    OCR.rows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      if (r.added) tr.className = 'endrow';
+      tr.innerHTML = `
+        <td><input type="checkbox" data-ock="${i}" ${r.on ? 'checked' : ''} ${r.added ? 'disabled' : ''}></td>
+        <td class="num">${tc(r.t)}</td>
+        <td>${r.added ? '<span class="tag" style="background:#37d39b22;border-color:#37d39b66;color:#8ef0c8">已加入</span>' : '<span class="stat" style="margin:0">待加入</span>'}</td>
+        <td>${(r.text || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}${r.kw ? ` <span class="tag" style="background:#ff5d5d22;border-color:#ff5d5d66;color:#ff9d9d">关键词 ${r.kw}</span>` : ''}</td>
+        <td style="text-align:right"><button class="btn xs" data-ojump="${i}">跳</button> <button class="btn xs" data-oadd="${i}" ${r.added ? 'disabled' : ''}>加入</button></td>`;
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll('[data-ock]').forEach(cb => cb.onchange = () => { OCR.rows[+cb.dataset.ock].on = cb.checked; });
+    tb.querySelectorAll('[data-ojump]').forEach(b => b.onclick = () => { $('video').currentTime = OCR.rows[+b.dataset.ojump].t; });
+    tb.querySelectorAll('[data-oadd]').forEach(b => b.onclick = () => ocrAdd([+b.dataset.oadd]));
+  }
+
+  /** 把识别出来的时刻加进切点：太近的会跳过（避免和已有切点/彼此撞在一起） */
+  function ocrAdd(idxList){
+    const near = 0.35;                                  // 与已有切点/本次新增的最近距离
+    let added = 0, skipped = 0;
+    for (const i of idxList) {
+      const r = OCR.rows[i];
+      if (!r || r.added) continue;
+      const clash = S.cuts.some(c => Math.abs(c - r.t) < near);
+      if (clash) { skipped++; r.added = true; r.on = false; continue; }
+      S.cuts.push(+r.t.toFixed(3));
+      r.added = true; r.on = false;
+      added++;
+    }
+    S.cuts.sort((a, b) => a - b);
+    S.selCut = S.cuts.length - 1 >= 0 ? S.cuts.indexOf(OCR.rows[idxList[idxList.length - 1]] ? +OCR.rows[idxList[idxList.length - 1]].t.toFixed(3) : -1) : -1;
+    rebuild(); renderTL(); renderMarks(); renderSegs();
+    renderOcrRows();
+    flash(`已加入 ${added} 个切点` + (skipped ? `，另有 ${skipped} 处与已有切点太近（<${near}s）自动跳过` : '') + `；共 ${S.segs.length} 段`);
+  }
+
+  /* ---------- 关键词 → 批量标错 ---------- */
+  const normTxt = s => String(s || '')
+    .replace(/[\s\u3000]+/g, '')
+    .replace(/[，。、！？：；,.!?:;"'`~（）()\[\]【】《》<>…—\-·]/g, '')
+    .toLowerCase();
+  let OCR_KW_AUTO = true;                       // 「识别后自动标错」
+  function ocrKeywords(){
+    return String($('ocrKw').value || '')
+      .split(/[,，、;；\s]+/)
+      .map(x => normTxt(x))
+      .filter(x => x.length >= 1);
+  }
+  /** 找到包含时刻 t 的那一段（按分段区间找） */
+  function segAtTime(t){
+    let i = S.segs.findIndex(x => t >= x.start - 1e-6 && t < x.end);
+    if (i < 0) i = S.segs.length - 1;
+    return i >= 0 ? S.segs[i] : null;
+  }
+  /**
+   * 按关键词批量标错：
+   *   ① 命中的句子先保证「有切点」（这样每个错句各自成段，标错不会牵连别的句子）；
+   *   ② 再把那一段标成 ❌（不取消别的、也不取消已有的错标）。
+   */
+  function applyOcrKeywords(silent){
+    const kws = ocrKeywords();
+    if (!kws.length) { if (!silent) flash('先填关键词，比如：飞,顺,马'); return 0; }
+    if (!OCR.rows.length) { if (!silent) flash('先用上面的「开始识别字幕变化」扫一遍（关键词是拿识别出来的文字做匹配的）'); return 0; }
+    const hits = [];
+    for (const r of OCR.rows) {
+      const n = normTxt(r.text);
+      const k = kws.find(w => n.includes(w));
+      r.kw = k || '';
+      if (k) hits.push(r);
+    }
+    if (!hits.length) {
+      renderOcrRows();
+      if (!silent) flash(`扫到的 ${OCR.rows.length} 句里没有「${kws.join(' / ')}」`);
+      return 0;
+    }
+    // ① 命中句子先打点（太近的跳过，视为同一句）
+    const near = 0.35;
+    let added = 0;
+    for (const r of hits) {
+      const clash = S.cuts.some(c => Math.abs(c - r.t) < near);
+      if (!clash) { S.cuts.push(+r.t.toFixed(3)); added++; }
+      r.added = true; r.on = false;
+    }
+    S.cuts.sort((a, b) => a - b);
+    rebuild();
+    // ② 标 ❌
+    let marked = 0, already = 0;
+    for (const r of hits) {
+      const seg = segAtTime(r.t);
+      if (!seg) continue;
+      const key = segKey(seg.start);
+      if (S.errs.has(key)) { already++; continue; }
+      S.errs.add(key);
+      marked++;
+    }
+    rebuild(); renderTL(); renderMarks(); renderSegs(); renderOcrRows();
+    const byKw = kws.map(w => w + '×' + hits.filter(h => h.kw === w).length).join(' ');
+    const msg = `关键词命中共 ${hits.length} 句（${byKw}）：已打点 ${added} 处、标 ❌ ${marked} 段` + (already ? `（另有 ${already} 段本来就是错标）` : '');
+    if (!silent) flash(msg, 4200);
+    const el = $('ocrMsg');
+    if (el) el.textContent = msg;
+    return marked;
+  }
+
+  function bindOcr(){
+    $('ocrRun').onclick = ocrRun;
+    $('ocrKwApply').onclick = () => applyOcrKeywords(false);
+    const wrap = $('ocrKwAutoWrap');
+    wrap.classList.toggle('on', OCR_KW_AUTO);
+    wrap.onclick = () => { OCR_KW_AUTO = !OCR_KW_AUTO; wrap.classList.toggle('on', OCR_KW_AUTO); saveStyle(); };
+    $('ocrBand').onchange = () => {
+      const [h, y] = $('ocrBand').value.split(',');
+      $('ocrBandH').value = Math.round(+h * 100);
+      $('ocrBandY').value = Math.round(+y * 100);
+    };
+    $('ocrAddAll').onclick = () => ocrAdd(OCR.rows.map((r, i) => i).filter(i => OCR.rows[i].on && !OCR.rows[i].added));
+    $('ocrAddSel').onclick = () => ocrAdd(OCR.rows.map((r, i) => i).filter(i => OCR.rows[i].on && !OCR.rows[i].added));
+    $('ocrClear').onclick = () => { OCR.rows = []; $('ocrResWrap').style.display = 'none'; $('ocrMsg').textContent = ''; };
+    $('ocrCkAll').onchange = () => { OCR.rows.forEach(r => { if (!r.added) r.on = $('ocrCkAll').checked; }); renderOcrRows(); };
+    $('ocrHint').onclick = () => {
+      alert('自动打点用的是本机 OCR（RapidOCR，离线模型），需要 Python 环境：\n\n'
+        + '1) 装 Python：https://www.python.org/downloads/（安装时勾选 Add to PATH）\n'
+        + '2) 再运行：pip install rapidocr_onnxruntime\n\n'
+        + '装好后刷新本页，上面会显示「OCR 就绪」。\n'
+        + '（只影响「自动打点」这一项功能；手动打点、导出、烧录都不需要它。）');
+    };
+    ocrCheck();
+  }
+
   /* ---------- 打点后期微调：±帧数 / 拉条吸附 / 关键帧吸附 ---------- */
   const vidFps = () => { const f = +((S.info || {}).fps); return (isFinite(f) && f > 1) ? f : 25; };
   const toFrame = t => Math.round((+t || 0) * vidFps());
   const frameToT = n => +((+n || 0) / vidFps()).toFixed(3);
   const SNAP_EPS = 0.0006;
+
+  function fmPosText(){
+    const el = $('fmPos');
+    if (!el) return;
+    const v = $('video');
+    const t = (v && isFinite(v.currentTime)) ? v.currentTime : 0;
+    el.textContent = '播放位置 ' + tc(t);
+  }
 
   function fineInfoText(){
     const el = $('fineInfo'), fpsEl = $('fineFps');
@@ -1134,13 +1443,66 @@
     showVal(0);
   }
 
+  /** 把选中的那一行滚进视野——只滚表格自己的滚动框，绝不动页面（否则页面会往下跳，视频就看不见了） */
+  function revealSelected(){
+    try {
+      const tr = document.querySelectorAll('#markBody tr')[S.selCut];
+      const box = $('markBody').closest('.scroll');
+      if (!tr || !box) return;
+      const top = tr.offsetTop, h = tr.offsetHeight;
+      const bTop = box.scrollTop, bH = box.clientHeight;
+      if (top < bTop) box.scrollTop = Math.max(0, top - 6);
+      else if (top + h > bTop + bH) box.scrollTop = top + h - bH + 6;
+    } catch (e) {}
+  }
+  /** 选中一个切点（统一入口：更新高亮 + 读数 + 表格滚动） */
+  function selectCut(i, opt){
+    if (i < 0 || S.cuts[i] == null) return false;
+    S.selCut = i;
+    renderTL(); renderMarks();
+    if (!opt || opt.seek !== false) $('video').currentTime = S.cuts[i];
+    revealSelected();
+    return true;
+  }
+  /** 选中「当前播放中的切点」：正在播的那一段的起始切点（那一段不是从切点开始的，就选它的结束切点） */
+  function selectCutAtPlayhead(){
+    if (!S.cuts.length) return flash('还没有切点，先按 M 或在下面打点');
+    const v = $('video');
+    const t = v.currentTime || 0;
+    const fps = vidFps();
+    const near = S.cuts.findIndex(c => Math.abs(c - t) <= 1.2 / fps);   // 播放头几乎正落在某个切点上
+    if (near >= 0){
+      selectCut(near, { seek: false });
+      flash(`已选中切点 #${near + 1} @ ${tc(t)}（第 ${toFrame(t)} 帧）—— 播放头正好在这个切点上`);
+      return true;
+    }
+    const seg = S.segs.find(x => t >= x.start - 1e-6 && t < x.end) || S.segs[S.segs.length - 1];
+    if (!seg) return flash('还没有分段，先打点');
+    const idxOf = at => S.cuts.findIndex(c => Math.abs(c - at) < 0.0006);
+    let i = idxOf(seg.start);                        // 优先：这一段是从哪个切点开始的
+    let which = '起点';
+    if (i < 0){ i = idxOf(seg.end); which = '结尾'; }  // 这一段从头就是视频开头 → 退而选它的结束点
+    if (i < 0) return flash('这一段两头的切点都不存在（可能整段就是全片）');
+    selectCut(i, { seek: false });
+    flash(`正在播第 ${seg.seq} 段（${tc(seg.start)} → ${tc(seg.end)}）→ 已选中它的${which}切点 #${i + 1} @ ${tc(S.cuts[i])}`);
+    return true;
+  }
+  /** 在播放位置打点并立刻选中（右边小条用） */
+  function addAndSelect(){
+    const before = S.cuts.length;
+    addMarker();
+    if (S.cuts.length > before){
+      const t = S.cuts.find(c => Math.abs(c - ($('video').currentTime || 0)) < 0.06);
+      const i = S.cuts.indexOf(t);
+      if (i >= 0){ selectCut(i, { seek: false }); flash(`已打点并选中 #${i + 1} @ ${tc(S.cuts[i])}（第 ${toFrame(S.cuts[i])} 帧）`); }
+    }
+  }
+
   function selectCutBy(delta){
     if (!S.cuts.length) return flash('还没有切点');
     let i = S.selCut < 0 ? (delta > 0 ? -1 : 0) : S.selCut;
     i = (i + delta + S.cuts.length) % S.cuts.length;
-    S.selCut = i;
-    renderTL(); renderMarks();
-    $('video').currentTime = S.cuts[i];
+    selectCut(i);
     flash(`已选中切点 #${i + 1} @ ${tc(S.cuts[i])}（第 ${toFrame(S.cuts[i])} 帧）`);
   }
 
@@ -1152,6 +1514,8 @@
     $('fineFwd').onclick = () => nudgeCut(N());
     $('fmPrev').onclick = () => selectCutBy(-1);
     $('fmNext').onclick = () => selectCutBy(1);
+    $('fmPick').onclick = selectCutAtPlayhead;
+    $('fmAdd').onclick = addAndSelect;
     $('fineJump').onclick = () => {
       const i = S.selCut;
       if (i < 0 || S.cuts[i] == null) return flash('先选中一个切点');
@@ -1330,6 +1694,8 @@
     order: 'badgeTop', badgeStyle: 'emoji', anchor: 'bottom-center',
     offsetX: 0, offsetY: -6, numberColor: '#FFFFFF', numberStroke: '#000000', strokeWidth: 0.4,
     delay: 0.5, sfxEnabled: true, sfxOkPath: '', sfxNoPath: '', sfxVolume: 100,
+    titleOn: false, titleText: '挑战30条视频刷不到F8FQ', titleSize: 5, titleAnchor: 'top-center',
+    titleOffsetY: 22, titleColor: '#FFD400', titleStroke: '#000000', titleStrokeW: 0.45,
     numDelay: 0,          // 编号出现延迟（默认 0：第一帧就有）
     badgeShow: 3,         // 符号显示时长（出现后多少秒消失；0=不消失）
     numberShow: 0,        // 编号显示时长（0=不消失，一直显示到片尾）
@@ -1366,6 +1732,14 @@
     BN.badgeStyle = $('bnStyle').value;
     BN.offsetX = num('bnOffX', 0);
     BN.offsetY = num('bnOffY', 0);
+    BN.titleOn = $('bnTitleWrap').classList.contains('on');
+    BN.titleText = $('bnTitleText').value;
+    BN.titleSize = num('bnTitleSize', BN.titleSize);
+    BN.titleAnchor = $('bnTitleAnchor').value;
+    BN.titleOffsetY = num('bnTitleOffY', BN.titleOffsetY);
+    BN.titleColor = $('bnTitleColor').value;
+    BN.titleStroke = $('bnTitleStroke').value;
+    BN.titleStrokeW = num('bnTitleStrokeW', BN.titleStrokeW);
     BN.numberColor = $('bnColor').value;
     BN.numberStroke = $('bnStroke').value;
     BN.strokeWidth = num('bnStrokeW', BN.strokeWidth);
@@ -1389,6 +1763,16 @@
     $('bnGap').value = BN.gap;
     $('bnOrder').value = BN.order;
     $('bnStyle').value = BN.badgeStyle;
+    if ($('bnTitleWrap')) {
+      $('bnTitleWrap').classList.toggle('on', !!BN.titleOn);
+      $('bnTitleText').value = BN.titleText || '';
+      $('bnTitleSize').value = BN.titleSize;
+      $('bnTitleAnchor').value = BN.titleAnchor || 'top-center';
+      $('bnTitleOffY').value = BN.titleOffsetY;
+      $('bnTitleColor').value = /^#/.test(String(BN.titleColor)) ? BN.titleColor : '#FFD400';
+      $('bnTitleStroke').value = /^#/.test(String(BN.titleStroke)) ? BN.titleStroke : '#000000';
+      $('bnTitleStrokeW').value = BN.titleStrokeW;
+    }
     $('bnOffX').value = BN.offsetX;
     $('bnOffY').value = BN.offsetY;
     $('bnColor').value = BN.numberColor;
@@ -1411,9 +1795,10 @@
     $('bnPv').style.display = 'none';      // 配置变了，旧预览作废
   }
 
-  ['bnOnWrap', 'bnCleanWrap', 'bnSfxWrap', 'mgOnWrap'].forEach(id => { $(id).onclick = () => { $(id).classList.toggle('on'); onBurnChange(); }; });
+  ['bnOnWrap', 'bnCleanWrap', 'bnSfxWrap', 'mgOnWrap', 'bnTitleWrap'].forEach(id => { $(id).onclick = () => { $(id).classList.toggle('on'); onBurnChange(); }; });
   ['bnScale', 'bnNumSize', 'bnGap', 'bnOrder', 'bnStyle', 'bnOffX', 'bnOffY', 'bnColor', 'bnStroke',
-    'bnStrokeW', 'bnDelay', 'bnNumDelay', 'bnShow', 'bnNumShow', 'bnSfxVol', 'bnSfxOk', 'bnSfxNo']
+    'bnStrokeW', 'bnDelay', 'bnNumDelay', 'bnShow', 'bnNumShow', 'bnSfxVol', 'bnSfxOk', 'bnSfxNo',
+    'bnTitleText', 'bnTitleSize', 'bnTitleAnchor', 'bnTitleOffY', 'bnTitleColor', 'bnTitleStroke', 'bnTitleStrokeW']
     .forEach(id => { $(id).oninput = onBurnChange; $(id).onchange = onBurnChange; });
 
   /** 界面值（百分数）→ 服务端比例值 */
@@ -1437,6 +1822,14 @@
       numberShow: BN.numberShow,          // 编号显示时长（0=不消失）
       merge: BN.merge !== false,          // 导出后是否合并成一条成片
       badgeStyle: BN.badgeStyle,
+      titleOn: !!BN.titleOn,
+      titleText: BN.titleText,
+      titleSize: BN.titleSize / 100,
+      titleAnchor: BN.titleAnchor,
+      titleOffsetY: BN.titleOffsetY / 100,
+      titleColor: BN.titleColor,
+      titleStroke: BN.titleStroke,
+      titleStrokeW: BN.titleStrokeW / 100,
       sfxEnabled: BN.sfxEnabled,
       sfxOkPath: BN.sfxOkPath,
       sfxNoPath: BN.sfxNoPath,
@@ -1555,6 +1948,34 @@
     c.fillText(t, pad, pad);
     return trimCv(cv);
   }
+  /** 统一标题条：黄字黑边（文字/字号/颜色/描边宽可配）；超宽等比缩到画面 94% 以内 */
+  function titleCanvas(cfg, vw, vh, fam){
+    const txt = String(cfg.titleText || '').trim();
+    if (!txt) return null;
+    const px = Math.max(10, Math.round(vh * (cfg.titleSize || 0.05)));
+    const sw = Math.max(0, Math.round(vh * (cfg.titleStrokeW || 0.0045)));
+    const pad = sw + Math.max(2, Math.floor(px / 8));
+    const cv = mkCv(px * (txt.length + 2) + pad * 2, Math.round(px * 1.8) + pad * 2);
+    const c = cv.getContext('2d');
+    c.font = `${(fam && fam.weight) || 'bold'} ${px}px "${(fam && fam.family) || 'Microsoft YaHei'}", "Microsoft YaHei", sans-serif`;
+    c.textAlign = 'left'; c.textBaseline = 'top';
+    c.lineJoin = 'round'; c.miterLimit = 2;
+    if (sw > 0) { c.lineWidth = sw * 2; c.strokeStyle = cfg.titleStroke || '#000000'; c.strokeText(txt, pad, pad); }
+    c.fillStyle = cfg.titleColor || '#FFD400';
+    c.fillText(txt, pad, pad);
+    let out = trimCv(cv);
+    const cap = Math.round(vw * 0.94);
+    if (out.width > cap) {
+      const k = cap / out.width;
+      const small = mkCv(out.width * k, out.height * k);
+      const sc = small.getContext('2d');
+      sc.imageSmoothingQuality = 'high';
+      sc.drawImage(out, 0, 0, small.width, small.height);
+      out = small;
+    }
+    return out;
+  }
+
   /** 生成整批标记图：返回 [{id,x,y,w,h,badgeStyle,layers:[{kind,png,x,y,w,h}]}]（png 为 dataURL） */
   async function buildOverlayItems(segs, cfg, vw, vh) {
     const fam = await numberFamily(cfg.fontPath);
@@ -1571,6 +1992,18 @@
       badgeCache[k] = fitSquare(img, badgePx);
       return badgeCache[k];
     };
+    // 统一标题条（可选）：每条切片都一样，整条都在
+    let titleLayer = null;
+    if (cfg.titleOn && String(cfg.titleText || '').trim()) {
+      const tcv = titleCanvas(cfg, vw, vh, fam);
+      if (tcv) {
+        const tfx = (ANCHOR_F[cfg.titleAnchor] || [.5, 0])[0], tfy = (ANCHOR_F[cfg.titleAnchor] || [.5, 0])[1];
+        let tx = Math.round((vw - tcv.width) * tfx + vw * (+cfg.titleOffsetX || 0));
+        let ty = Math.round((vh - tcv.height) * tfy + vh * (+cfg.titleOffsetY || 0));
+        tx = Math.max(0, Math.min(vw - tcv.width, tx)); ty = Math.max(0, Math.min(vh - tcv.height, ty));
+        titleLayer = { canvas: tcv, x: tx - (tx % 2), y: ty - (ty % 2), w: tcv.width, h: tcv.height };
+      }
+    }
     const items = [];
     for (const s of segs) {
       const badge = badgeOf(!!s.err);
@@ -1589,6 +2022,8 @@
         layers.push({ kind, png: cv.toDataURL('image/png'), x: lx - (lx % 2), y: ly - (ly % 2), w: cv.width, h: cv.height });
         yoff += cv.height + gap;
       }
+      if (titleLayer) layers.push({ kind: 'title', png: titleLayer.canvas.toDataURL('image/png'),
+        x: titleLayer.x, y: titleLayer.y, w: titleLayer.w, h: titleLayer.h });
       items.push({ id: String(s.seq), num: s.num, err: !!s.err, x, y, w: W, h: H, badgeStyle: (cfg.badgeStyle || 'emoji'), layers });
     }
     return items;
@@ -1872,6 +2307,7 @@
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     const k = String(e.key || '').toLowerCase();
+    if (k === 's'){ e.preventDefault(); selectCutAtPlayhead(); return; }   // S = 选中正在播的那一段的切点
     if (k === ',' || k === '.'){                    // , . 按帧微调选中的切点（Shift 一次 5 帧）
       e.preventDefault();
       nudgeCut(k === ',' ? -(e.shiftKey ? 5 : 1) : (e.shiftKey ? 5 : 1));
@@ -1890,6 +2326,7 @@
       const d = S.duration || vid.duration || 1;
       $('ph').style.left = ((vid.currentTime / d) * 100) + '%';
       $('curt').textContent = tc(vid.currentTime) + ' / ' + tc(d);
+      fmPosText();                       // 右边小条的「播放位置」读数
       applyPlaying(false, true);
     });
     vid.addEventListener('seeking', () => applyPlaying(true, true));
@@ -2091,6 +2528,7 @@
     }
     loadBurnLS();          // 本地保存的界面配置优先
     bindFine();
+    bindOcr();
     buildGrid();
     applyBurnUI();
     updateSegStat();

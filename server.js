@@ -22,6 +22,7 @@ const PY = PYINFO.path;
 const OCR_WORKER = path.join(__dirname, 'ocr_worker.py');
 const OVERLAY_PY = process.env.CUT_OVERLAY_PY || path.join(__dirname, 'overlay_gen.py'); // ✅/❌+编号 合成
 const PICK_PS1 = path.join(__dirname, 'pick_file.ps1');   // 原生文件对话框
+const OCR = require('./ocr_scan');          // 本地 OCR 自动打点（ffmpeg 抽帧 + RapidOCR）
 
 const ROOT = __dirname;
 const WORK = path.join(ROOT, 'work');        // 中间产物（帧图、清单）
@@ -52,6 +53,15 @@ const DEFAULT_BURN = {
   anchor: 'bottom-center',// 九宫格锚点
   offsetX: 0,             // 附加偏移（画面宽/高的比例）
   offsetY: -0.06,
+  // 统一标题条（黄字黑边，烧在每条切片上；文字/字号/位置/颜色都能改）
+  titleOn: false,               // 默认关：不需要标题的人不受影响，开一下即可
+  titleText: '挑战30条视频刷不到F8FQ',
+  titleSize: 0.05,              // 字号 = 画面高 × 该值
+  titleAnchor: 'top-center',
+  titleOffsetY: 0.22,           // 在锚点基础上再往下 22%（≈ 画面上方 1/4 处）
+  titleColor: '#FFD400',
+  titleStroke: '#000000',
+  titleStrokeW: 0.0045,
   numberColor: '#FFFFFF',
   numberStroke: '#000000',
   strokeWidth: 0.004,     // 描边宽 = 画面高 × 该值
@@ -566,6 +576,14 @@ function normBurn(raw) {
   b.badgeStyle = b.badgeStyle === 'vector' ? 'vector' : 'emoji';
   b.anchor = ANCHORS.includes(b.anchor) ? b.anchor : 'bottom-center';
   b.fontPath = String(b.fontPath || '').trim() || DEFAULT_BADGE_FONT;
+  b.titleOn = b.titleOn === true;
+  b.titleText = String(b.titleText == null ? DEFAULT_BURN.titleText : b.titleText).slice(0, 60);
+  b.titleSize = clampF(b.titleSize, 0.02, 0.2, DEFAULT_BURN.titleSize);
+  b.titleAnchor = ANCHORS.includes(b.titleAnchor) ? b.titleAnchor : DEFAULT_BURN.titleAnchor;
+  b.titleOffsetY = clampF(b.titleOffsetY, -1, 1, DEFAULT_BURN.titleOffsetY);
+  b.titleStrokeW = clampF(b.titleStrokeW, 0, 0.02, DEFAULT_BURN.titleStrokeW);
+  b.titleColor = /^#?[0-9a-fA-F]{3,8}$/.test(String(b.titleColor || '')) ? String(b.titleColor) : DEFAULT_BURN.titleColor;
+  b.titleStroke = /^#?[0-9a-fA-F]{3,8}$/.test(String(b.titleStroke || '')) ? String(b.titleStroke) : DEFAULT_BURN.titleStroke;
   b.numberColor = /^#?[0-9a-fA-F]{3,8}$/.test(String(b.numberColor || '')) ? String(b.numberColor) : DEFAULT_BURN.numberColor;
   b.numberStroke = /^#?[0-9a-fA-F]{3,8}$/.test(String(b.numberStroke || '')) ? String(b.numberStroke) : DEFAULT_BURN.numberStroke;
   return b;
@@ -702,11 +720,12 @@ function overlayChain(layers) {
 function ovItems(entry, badgeDelay, numberDelay, badgeShow, numberShow) {
   if (!entry || !Array.isArray(entry.layers)) return [];
   return entry.layers.map(L => {
+    const isTitle = (L.kind === 'title');
     const isNum = (L.kind === 'number');
     return {
       png: L.png, x: L.x, y: L.y,
-      delay: isNum ? numberDelay : badgeDelay,
-      show: isNum ? numberShow : badgeShow,
+      delay: isTitle ? 0 : (isNum ? numberDelay : badgeDelay),     // 标题条：整条切片都在
+      show: isTitle ? 0 : (isNum ? numberShow : badgeShow),
     };
   });
 }
@@ -1072,6 +1091,55 @@ const server = http.createServer(async (req, res) => {
     }
 
     // --- 烧录标记预览：合成 ✅/❌+编号 图，返回图片 base64 与贴图坐标 ---
+    // --- OCR 后端自检（本地 RapidOCR，装没装）---
+    if (p === '/api/ocr/check') {
+      const r = await OCR.check(PY);
+      return json(res, 200, Object.assign({ py: PY, worker: path.join(__dirname, 'ocr_worker.py') }, r));
+    }
+
+    // --- 自动打点：OCR 找「字幕文字变化的瞬间」---
+    if (p === '/api/ocr/scan') {
+      const src = body.path;
+      if (!src || !fs.existsSync(src)) return json(res, 400, { error: '文件不存在' });
+      const info = await probe(src);
+      const dur = info.duration || 0;
+      const from = Math.max(0, Math.min(dur || 1e9, +body.from || 0));
+      const to = Math.max(from, Math.min(dur || 1e9, +body.to || dur || 1e9));
+      const fps = Math.max(2, Math.min(15, +body.fps || 8));
+      const scene = Math.max(0.005, Math.min(0.5, +body.scene || 0.04));
+      const num = (v, dflt) => { const n = +v; return isFinite(n) ? n : dflt; };   // 不能用 `+v != null ? +v : d`（undefined 会变 NaN）
+      let bandH = Math.max(0.03, Math.min(1, num(body.bandH, 0.25)));
+      let bandY = Math.max(0, Math.min(1 - bandH, num(body.bandY, 0.75)));
+      const delay = Math.max(0, Math.min(3, num(body.delay, 0.5)));
+      const sim = Math.max(0.2, Math.min(0.98, +body.sim || 0.72));
+      const minGap = Math.max(0.1, Math.min(20, +body.minGap || 0.8));
+      const minLen = Math.max(1, Math.min(20, +body.minLen || 2));
+      const maxCand = Math.max(20, Math.min(5000, +body.maxCand || 1200));
+      const id = newJob('ocr');
+      json(res, 200, { ok: true, jobId: id });
+      (async () => {
+        const j = jobs.get(id);
+        try {
+          jobLog(id, `扫描范围 ${to > from ? (from.toFixed(1) + 's → ' + to.toFixed(1) + 's') : '整段'} · 画布 ${info.width}×${info.height}${info.fps ? ' · ' + (+info.fps).toFixed(0) + 'fps' : ''}`);
+          const r = await OCR.scan({
+            ffmpeg: FFMPEG, py: PY, worker: path.join(__dirname, 'ocr_worker.py'),
+            workDir: WORK, dir: path.join(WORK, 'ocr'),
+            src, from, to, fps, scene, bandY, bandH, delay, sim, minGap, minLen, maxCand,
+          }, m => jobLog(id, m));
+          j.result = r;
+          j.state = 'done';
+          j.message = `完成：候选 ${r.stats.detected} 处 → 换句 ${r.stats.kept} 次（${r.stats.seconds}s）`;
+          jobLog(id, j.message);
+        } catch (e) {
+          j.state = 'error';
+          j.error = String(e && e.message || e) + (e && e.ocrMissing
+            ? '\n提示：本机没装 OCR 模型。装法：pip install rapidocr_onnxruntime （纯本地离线，约 60MB）' : '');
+          jobLog(id, 'OCR 失败：' + String(e && e.message || e).slice(0, 300));
+        }
+      })();
+      return;
+    }
+
     // --- 关键帧列表（打点微调「吸附到关键帧」用；只扫切点附近一小段，很快）---
     if (p === '/api/keyframes') {
       const ksrc = body.path;
@@ -1115,7 +1183,7 @@ const server = http.createServer(async (req, res) => {
           if (!id) continue;
           const rec = { id, x: Math.round(+it.x || 0), y: Math.round(+it.y || 0), w: Math.round(+it.w || 0), h: Math.round(+it.h || 0), layers: [] };
           for (const L of it.layers || []) {
-            const kind = (L.kind === 'number') ? 'number' : 'badge';
+            const kind = ['number', 'title'].includes(L.kind) ? L.kind : 'badge';   // title 是后续加的图层种类，别再被并成 badge
             const b64 = String(L.png || L.b64 || '').replace(/^data:image\/png;base64,/, '');
             if (!b64) continue;
             const buf = Buffer.from(b64, 'base64');

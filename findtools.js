@@ -171,7 +171,8 @@ function pythonCandidates(root) {
   const list = [];
   const envP = process.env.CUT_PY || process.env.BINGO_PY || process.env.TOOL_PY;
   if (envP) list.push(envP);
-  // PATH 里所有可能的 python
+  const DEV_VENV = 'C:\\Users\\Administrator\\.workbuddy\\binaries\\python\\envs\\default\\Scripts\\python.exe';
+  if (String(process.env.TOOL_NO_DEV_FALLBACK || '').trim() !== '1') list.push(DEV_VENV);   // 工具专用 venv（带 OCR 模型）优先
   const dirs = String(process.env.PATH || '').split(path.delimiter);
   for (const n of names) for (const d of dirs) {
     if (!d) continue;
@@ -180,40 +181,61 @@ function pythonCandidates(root) {
   }
   if (isWin) {
     const la = process.env.LOCALAPPDATA || '';
-    if (String(process.env.TOOL_NO_DEV_FALLBACK || '').trim() !== '1') {
-      list.push(
-        la ? path.join(la, 'Programs', 'Python', 'Python312', 'python.exe') : '',
-        la ? path.join(la, 'Programs', 'Python', 'Python311', 'python.exe') : '',
-        la ? path.join(la, 'Programs', 'Python', 'Python310', 'python.exe') : '',
-        'C:\\Python312\\python.exe', 'C:\\Python311\\python.exe', 'C:\\Python310\\python.exe',
-        'C:\\Users\\Administrator\\.workbuddy\\binaries\\python\\envs\\default\\Scripts\\python.exe'
-      );
-    }
+    list.push(
+      la ? path.join(la, 'Programs', 'Python', 'Python312', 'python.exe') : '',
+      la ? path.join(la, 'Programs', 'Python', 'Python311', 'python.exe') : '',
+      la ? path.join(la, 'Programs', 'Python', 'Python310', 'python.exe') : '',
+      'C:\\Python312\\python.exe', 'C:\\Python311\\python.exe', 'C:\\Python310\\python.exe'
+    );
   }
-  return [...new Set(list.filter(Boolean))];
+  const seen = new Set();
+  const out = [];
+  for (const c of list) {
+    if (!c) continue;
+    let key = c.toLowerCase();
+    try { key = fs.realpathSync(c).toLowerCase(); } catch (e) {}
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!existsFile(c)) continue;
+    out.push(c);
+  }
+  return out;
 }
-/** 优先返回装了 Pillow 的 python；找不到 Pillow 就返回任意一个可用 python（ok 仍为 true，pillow=false） */
+
+/**
+ * 挑一个 python：**优先带 rapidocr_onnxruntime 的**（本地 OCR 自动打点要用），
+ * 其次是带 Pillow 的（历史备用路径），都没有就给第一个能跑的。
+ * 返回 { path, ok, pillow, ocr, ver, pillowVer, ocrVer, source, versions }
+ */
 function resolvePython(root, maxProbe) {
   const cands = pythonCandidates(root || __dirname);
-  const n = maxProbe == null ? 4 : maxProbe;
-  let firstOk = null, versions = [];
+  const n = maxProbe == null ? 5 : maxProbe;
+  const probe = [
+    '-c',
+    "import sys;v=sys.version.split()[0];p='';o=''\n" +
+    "try:\n import PIL;p=PIL.__version__\nexcept Exception: pass\n" +
+    "try:\n import rapidocr_onnxruntime as r;o=getattr(r,'__version__','?')\nexcept Exception: pass\n" +
+    "print(v+'|'+p+'|'+o)",
+  ];
+  const versions = [];
+  let bestOcr = null, bestPil = null, bestAny = null;
   for (const c of cands.slice(0, n)) {
-    const r = spawnSync(c, ['-c', 'import sys,PIL;print(sys.version.split()[0]+"|"+PIL.__version__)'],
-      { encoding: 'utf8', windowsHide: true, timeout: 10000 });
+    const r = spawnSync(c, probe, { encoding: 'utf8', windowsHide: true, timeout: 20000 });
     const out = String((r.stdout || '') + (r.stderr || '')).trim().split('\n').pop() || '';
-    if (r.status === 0 && out.includes('|')) {
-      versions.push({ path: c, v: out });
-      if (!firstOk) firstOk = { path: c, ok: true, pillow: true, ver: out, source: describe(c, root) };
-      if (versions.length >= 2) break;
-    } else if (r.status === 0) {
-      if (!firstOk) firstOk = { path: c, ok: true, pillow: false, ver: '', source: describe(c, root) };
-    } else if (!firstOk && existsFile(c)) {
-      // python 能跑但 import 失败 → 记下来，继续找带 Pillow 的
-      if (!versions.length) firstOk = firstOk || { path: c, ok: true, pillow: false, ver: '', source: describe(c, root) };
-    }
+    if (r.error || r.status !== 0 || out.indexOf('|') < 0) continue;
+    const [v, pil, ocr] = out.split('|');
+    const rec = { path: c, ok: true, ver: v, pillowVer: pil, ocrVer: ocr,
+      pillow: !!pil, ocr: !!ocr && ocr !== '', source: describe(c, root) };
+    versions.push({ path: c, ver: v, pillow: rec.pillow, ocr: rec.ocr });
+    if (!bestAny) bestAny = rec;
+    if (rec.ocr && !bestOcr) bestOcr = rec;
+    if (rec.pillow && !bestPil) bestPil = rec;
+    if (bestOcr) break;                                     // 找到带 OCR 的就够了
   }
-  if (firstOk) return Object.assign(firstOk, { versions });
-  return { path: isWin ? 'python.exe' : 'python', ok: false, pillow: false, ver: '', source: '未找到', versions: [] };
+  const pick = bestOcr || bestPil || bestAny;
+  if (pick) return Object.assign(pick, { versions });
+  return { path: isWin ? 'python.exe' : 'python', ok: false, pillow: false, ocr: false,
+    ver: '', pillowVer: '', ocrVer: '', source: '未找到', versions: [] };
 }
 
 module.exports = { resolveFfmpeg, resolvePython, scanForFfmpeg, checkFfmpeg, readCache, writeCache,

@@ -17,6 +17,7 @@ const https = require('https');
 const http = require('http');
 const zlib = require('zlib');
 const { spawnSync } = require('child_process');
+const readline = require('readline');
 const TOOLS = require('./findtools');
 
 const ROOT = __dirname;
@@ -138,11 +139,50 @@ function findInDir(dir, depth) {
   return null;
 }
 
+/* ---------- 可选：OCR（自动打点「认字幕变化」用） ---------- */
+function runCmd(cmd, args, label) {
+  return new Promise(resolve => {
+    console.log('    ' + cmd + ' ' + args.join(' '));
+    const p = spawnSync(cmd, args, { stdio: 'inherit', windowsHide: true });
+    resolve(p.status === 0);
+  });
+}
+function ask(question) {
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, ans => { rl.close(); resolve(/^y/i.test(String(ans || '').trim())); });
+  });
+}
+async function ensureOcr() {
+  const py = TOOLS.resolvePython(ROOT);
+  const has = !!(py.ok && py.ocr);
+  log('');
+  log('  自动打点（OCR 认字幕变化）: ' + (has ? '✔ 已装 ' + ((py.ocrVer && py.ocrVer !== '?') ? py.ocrVer : 'RapidOCR') : '未装（这是可选功能，不影响其他功能）'));
+  if (has) return;
+  if (!py.ok) {
+    log('    想用「自动打点」的话：');
+    log('      1) 装 Python: https://www.python.org/downloads/  （安装时勾选 Add to PATH）');
+    log('      2) 再运行:    pip install rapidocr_onnxruntime');
+    return;
+  }
+  log('    （本机 Python: ' + py.path + '）');
+  const yes = await ask('    要顺便装 OCR 吗？纯本地离线模型，约 60MB [Y/N] ');
+  if (!yes) { log('    跳过。以后想装：' + py.path + ' -m pip install rapidocr_onnxruntime'); return; }
+  let ok = await runCmd(py.path, ['-m', 'pip', 'install', 'rapidocr_onnxruntime']);
+  if (!ok) {                                   // 国内网络慢时走清华镜像
+    log('    默认源失败，换清华镜像再试一次…');
+    ok = await runCmd(py.path, ['-m', 'pip', 'install', '-i', 'https://pypi.tuna.tsinghua.edu.cn/simple', 'rapidocr_onnxruntime']);
+  }
+  log(ok ? '    ✔ OCR 装好了（自动打点可用）' : '    ✘ OCR 没装上；可稍后手动运行上面那条 pip 命令');
+}
+
 async function main() {
   log('============================================');
   log('  童站挑战剪辑器 · 依赖安装（只需 ffmpeg）');
   log('============================================');
   if (selfCheck()) {
+    await ensureOcr();
+    log('');
     log('  什么都不用装，直接双击「启动.cmd」就能用。');
     return 0;
   }
@@ -225,6 +265,8 @@ async function main() {
 
   log('');
   if (selfCheck(false)) {
+    await ensureOcr();
+    log('');
     log('  ✔ 搞定！现在双击「启动.cmd」就能用了（以后都不需要联网）。');
     return 0;
   }
